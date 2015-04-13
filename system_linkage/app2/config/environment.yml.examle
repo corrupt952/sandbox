@@ -1,0 +1,17 @@
+defaults: &defaults
+  aws:
+    bucket_name: ''
+    access_key: ''
+    secret_key: ''
+    region:     ''
+  api:
+    app1_url_base: 'http://localhost:3001/api'
+
+development:
+  <<: *defaults
+
+test:
+  <<: *defaults
+
+production:
+  <<: *defaults

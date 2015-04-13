@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="<%= locale %>">
+  <head>
+    <title>App1</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= stylesheet_link_tag    "application", media: "all" %>
+    <%= javascript_include_tag "application" %>
+    <%= csrf_meta_tags %>
+  </head>
+  <body data-controller="<%= params[:controller] %>">
+    <!-- header -->
+    <div class="navbar navbar-default navbar-fixed">
+      <div class="container-fluid">
+        <div class="row">
+          <div class="col-sm-12 col-xs-12">
+            <div class="navbar-header">
+              <%= link_to 'App1', root_path, class: 'navbar-brand' %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /header -->
+
+    <!-- container -->
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-sm-2 col-xs-12">
+          <ul class="nav nav-pills nav-stacked">
+            <li role="presentation" class="<%= 'active' if params[:controller] == 'home' %>">
+              <%= link_to 'Home', root_path %>
+            </li>
+            <li role="presentation" class="<%= 'active' if params[:controller] == 'categories' %>">
+              <%= link_to 'Categories', categories_path %>
+            </li>
+            <li role="presentation" class="<%= 'active' if params[:controller] == 'posts' %>">
+              <%= link_to 'Posts', posts_path %>
+            </li>
+            <li role="presentation" class="<%= 'active' if params[:controller] == 'images' %>">
+              <%= link_to 'Images', images_path %>
+            </li>
+          </div>
+          <div class="col-sm-10 col-xs-12">
+            <%= yield %>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /container -->
+  </body>
+</html>
