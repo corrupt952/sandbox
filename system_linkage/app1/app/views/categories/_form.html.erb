@@ -1,0 +1,15 @@
+<%= simple_form_for @category, url: url, wrapper: :horizontal_form, html: { class: 'form-horizontal' } do |f| %>
+  <div class="panel panel-default">
+    <div class="panel-heading"><%= title %></div>
+    <div class="panel-body">
+      <% if @category.persisted? %>
+        <%= f.input :id, readonly: true %>
+      <% end %>
+      <%= f.input :name %>
+      <%= f.input :slug %>
+    </div>
+  </div>
+  <div class="text-right">
+    <%= f.button :submit, class: 'btn btn-primary' %>
+  </div>
+<% end %>

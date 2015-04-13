@@ -1,0 +1,25 @@
+<%= simple_form_for @post, url: url, wrapper: :horizontal_form, html: { class: 'form-horizontal' } do |f| %>
+  <div class="panel panel-default">
+    <div class="panel-heading"><%= title %></div>
+    <div class="panel-body">
+      <%= f.input :id, as: :hidden %>
+      <%= f.input :category_id, collection: Category.all %>
+      <%= f.input :postname %>
+      <%= f.input :thumbnail, as: :file, wrapper: :horizontal_file_input %>
+      <%= f.input :thumbnail_cache, as: :hidden %>
+      <% if @post.thumbnail_url.present? %>
+        <div class="form-group">
+          <div class="col-sm-3"></div>
+          <div class="col-sm-9">
+            <%= image_tag @post.thumbnail_url, class: 'img-responsive' %>
+          </div>
+        </div>
+      <% end %>
+      <%= f.input :title %>
+      <%= f.input :body, input_html: { class: 'summernote' } %>
+    </div>
+  </div>
+  <div class="text-right">
+    <%= f.button :submit, class: 'btn btn-primary' %>
+  </div>
+<% end %>

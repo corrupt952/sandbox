@@ -1,0 +1,29 @@
+<div class="row">
+  <% @categories.each do |category| %>
+  <div class="col-sm-6 col-xs-12">
+      <div class="panel panel-default">
+        <div class="panel-body">
+          <h4><%= category.name %></h4>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Id</th>
+                <th>Title</th>
+                <th>Body</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% category.posts.take(10).each do |post| %>
+                <tr>
+                  <td><%= post.id %></td>
+                  <td><%= post.title %></td>
+                  <td><%= truncate(post.body, length: 30) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+  </div>
+  <% end %>
+</div>
