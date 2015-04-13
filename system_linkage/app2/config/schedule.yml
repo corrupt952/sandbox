@@ -1,0 +1,4 @@
+synchronizing_worker:
+  cron: "* * * * *"
+  class: "SynchronizingWorker"
+  queue: synchronizing_worker

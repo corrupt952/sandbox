@@ -1,0 +1,31 @@
+<div class="row">
+  <div class="col-sm-12">
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Id</th>
+          <th>Original</th>
+          <th>Small</th>
+          <th>Medium</th>
+          <th>Large</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @images.each do |image| %>
+          <tr>
+            <td><%= image.id %></td>
+            <td><%= image.file.url %></td>
+            <td><%= image.file.small.url %></td>
+            <td><%= image.file.medium.url %></td>
+            <td><%= image.file.large.url %></td>
+            <td>
+              <%= link_to 'Delete', image_path(image), method: :delete, class: 'btn btn-danger btn-sm' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= paginate @images %>
+  </div>
+</div>

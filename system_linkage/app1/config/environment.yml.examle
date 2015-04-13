@@ -1,0 +1,15 @@
+defaults: &defaults
+  aws:
+    bucket_name: ''
+    access_key: ''
+    secret_key: ''
+    region:     ''
+
+development:
+  <<: *defaults
+
+test:
+  <<: *defaults
+
+production:
+  <<: *defaults
