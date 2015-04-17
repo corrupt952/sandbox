@@ -14,5 +14,8 @@ module PostRepresenter
     getter: -> _ { read_attribute(:thumbnail) },
     setter: -> v, _ { write_attribute(:thumbnail, v) }
 
-  collection_representer class: Post
+  collection_representer class: Post, parse_strategy: -> fragment, *args {
+      posts = args.last.represented
+      posts.find_or_initialize_by(id: fragment['post']['id'])
+    }
 end
