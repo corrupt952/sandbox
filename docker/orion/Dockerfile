@@ -1,8 +1,7 @@
 FROM centos:centos7
 MAINTAINER Kazuki Hasegawa <hasegawa@khasegawa.net>
 RUN yum update -y && \
-        yum groupinstall -y "Development Tools" && \
-        yum install -y libxml2-devel ncurses ncurses-devel libffi-devel openssl openssl-devel wget java-1.8.0-openjdk
+        yum install -y wget unzip java-1.8.0-openjdk
 RUN useradd -m corrupt952
 ENV HOME /home/corrupt952
 USER corrupt952
