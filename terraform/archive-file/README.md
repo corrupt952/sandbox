@@ -1,5 +1,8 @@
 # data.archive_fileの検証コード
 
+## 環境
+* Terraform ... v0.11.7 or later
+
 ## やりたいこと
 以下の条件でzipファイルを作成できるか確認する.
 
