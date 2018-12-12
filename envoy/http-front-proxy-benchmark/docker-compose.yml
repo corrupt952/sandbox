@@ -1,0 +1,24 @@
+version: '3'
+services:
+  envoy:
+    build:
+      context: .
+      dockerfile: dockerfiles/envoy/Dockerfile
+    expose:
+      - "80"
+    ports:
+      - "8000:80"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: dockerfiles/nginx/Dockerfile
+    expose:
+      - "80"
+    ports:
+      - "8001:80"
+
+  service:
+    image: nginx:stable-alpine
+    expose:
+      - "80"
