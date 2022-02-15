@@ -90,3 +90,21 @@ commit
 commit
 merge newbranch
 ```
+
+## 構成図っぽく？
+
+
+```mermaid
+graph LR
+    User --> Nginx
+    User --> CF[CloudFront]
+    subgraph AWS
+        subgraph EC2
+            Nginx --> Puma
+            Puma --> db[(MySQL)]
+            Puma --> cache[(Redis)]
+        end
+        
+        CF --> S3
+    end
+```
