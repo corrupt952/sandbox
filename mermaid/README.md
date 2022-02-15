@@ -54,7 +54,7 @@ Future task2               :         des4, after des3, 5d
 ## クラス図
 
 ```mermaid
-lassDiagram
+classDiagram
 Class01 <|-- AveryLongClass : Cool
 Class03 *-- Class04
 Class05 o-- Class06
