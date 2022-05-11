@@ -1,0 +1,16 @@
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - 8080:80
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - app
+  app:
+    build: app
+    volumes:
+      - ./app:/app
+    environment:
+      RAILS_ENV: production
+    command: bundle exec unicorn -c unicorn.conf
