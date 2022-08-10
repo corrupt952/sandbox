@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+    - "8080:80"
+    volumes:
+    - ./nginx:/etc/nginx
+  app:
+    image: golang:alpine
+    command: go run main.go
+    working_dir: /usr/src/app
+    volumes:
+    - ./app:/usr/src/app
