@@ -3,12 +3,14 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-    - "8080:80"
+    - "8000:80"
     volumes:
     - ./nginx:/etc/nginx
   app:
     image: golang:alpine
     command: go run main.go
     working_dir: /usr/src/app
+    ports:
+    - "8001:3000"
     volumes:
     - ./app:/usr/src/app
