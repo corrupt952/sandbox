@@ -1,0 +1,14 @@
+name: Concurrency Test
+
+on: [workflow_dispath]
+
+concurrency:
+  hoge
+
+jobs:
+  concurrency_workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          sleep 15
