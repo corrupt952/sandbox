@@ -1,6 +1,6 @@
 name: Concurrency Test 2
 
-on: [workflow_dispath]
+on: [workflow_dispatch]
 
 concurrency:
   hoge
