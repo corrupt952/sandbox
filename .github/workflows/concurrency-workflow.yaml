@@ -3,7 +3,8 @@ name: Concurrency Test
 on: [workflow_dispatch]
 
 concurrency:
-  hoge
+  group: hoge
+  cancel-in-progress: false
 
 jobs:
   concurrency_workflow:
