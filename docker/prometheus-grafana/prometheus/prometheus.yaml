@@ -1,0 +1,25 @@
+global:
+ scrape_interval: 1m
+
+scrape_configs:
+- job_name: 'snmp.rtx1300'
+  scrape_interval: 5s
+  static_configs:
+    - targets:
+        - 192.168.100.1 # Change to IP address of RTX1300
+      labels:
+        name: RTX1300
+        vendor: yamaha
+  params:
+    module:
+      - rtx1300
+  metrics_path: /snmp
+  relabel_configs:
+    - source_labels: [__address__]
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - source_labels: [type]
+      target_label: __param_module
+    - target_label: __address__
+      replacement: snmp-exporter:9116
