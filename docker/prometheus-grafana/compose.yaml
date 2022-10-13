@@ -1,0 +1,27 @@
+services:
+  grafana:
+    image: grafana/grafana
+    restart: always
+    ports:
+    - 3000:3000
+    volumes:
+    - ./grafana:/var/lib/grafana
+    depends_on:
+    - prometheus
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+    - 9090:9090
+    command:
+    - --config.file=/prometheus/prometheus.yaml
+    volumes:
+    - ./prometheus:/prometheus
+
+  snmp-exporter:
+    image: prom/snmp-exporter
+    restart: always
+    ports:
+    - 9116:9116
+    volumes:
+    - ./snmp-exporter:/etc/snmp_exporter

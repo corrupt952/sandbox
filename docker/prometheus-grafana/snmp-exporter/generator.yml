@@ -1,0 +1,17 @@
+# http://www.rtpro.yamaha.co.jp/RT/docs/snmp/index.html
+modules:
+  rtx1300:
+    version: 1
+    auth:
+      community: public
+    walk:
+      - ifInOctets
+      - ifOutOctets
+      # http://www.rtpro.yamaha.co.jp/RT/docs/mib/yamaha-rt-firmware.mib.txt
+      - yrfRevision # NOTE: not working
+      - yrfUpTime
+      # - yrfConfig
+      # http://www.rtpro.yamaha.co.jp/RT/docs/mib/yamaha-rt-hardware.mib.txt
+      - yrhInboxTemperature # NOTE: not working
+      - yrhMultiCpuUtil5sec
+      - yrhMemoryUtil
