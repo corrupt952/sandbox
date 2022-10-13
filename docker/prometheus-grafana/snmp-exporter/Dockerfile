@@ -8,8 +8,7 @@ RUN apt-get update -qq \
         libsnmp-dev \
         curl \
         wget \
-        unzip \
-        p7zip-full
+        unzip
 
 ENV SNMP_EXPORTER_PATH /opt/snmp_exporter
 ENV MIBDIRS /opt/snmp_exporter/generator/mibs
