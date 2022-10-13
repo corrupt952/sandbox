@@ -2,6 +2,7 @@
 
 ## Usage
 
+1. Configuring SNMP configuration on the RTX1300 (e.g. `snmp host any`)
 1. Rewrite generator.yml as needed
 1. Change targets attribute in prometheus.yml to IP address of RTX1300
 1. Run containers Prometheus, SNMP Exporter and Grafana
