@@ -1,1 +1,4 @@
 **/dist/**/*
+
+/docker/prometheus-grafana/grafana
+/docker/prometheus-grafana/prometheus
