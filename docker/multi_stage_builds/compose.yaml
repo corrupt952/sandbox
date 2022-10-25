@@ -1,0 +1,6 @@
+services:
+  redis:
+    build:
+      target: dev
+    ports:
+     - 6379:6379
