@@ -19,5 +19,5 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          context: docker/multi_stage_build
+          context: docker/multi_stage_builds
           target: ${{ matrix.stage }}
