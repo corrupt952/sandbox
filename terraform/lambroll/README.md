@@ -3,7 +3,7 @@
 ## Setup
 
 1. Install Node.JS 16 or greater than
-2. Install terraform and lambroll via [aqua](https://aquaproj.github.io/)[]
+2. Install terraform and lambroll via [aqua](https://aquaproj.github.io/)
 3. Configure AWS credentials
 
 ## Deploy
