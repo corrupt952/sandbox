@@ -1,0 +1,9 @@
+{
+  "Description": "{{ must_env `LAMBDA_DESCRIPTION` }}",
+  "FunctionName": "{{ must_env `LAMBDA_FUNCTION_NAME` }}",
+  "Role": "{{ must_env `LAMBDA_ROLE_ARN` }}",
+  "Runtime": "nodejs16.x",
+  "Handler": "dist/index.handler",
+  "Timeout": 5,
+  "MemorySize": 128
+}
