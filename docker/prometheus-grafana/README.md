@@ -16,6 +16,49 @@
 
 ```json
 {
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "panel",
+      "id": "gauge",
+      "name": "Gauge",
+      "version": ""
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "9.5.3"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -41,14 +84,14 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 1,
+  "id": null,
   "links": [],
   "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bQ_CKFS4z"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -91,12 +134,12 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.8",
+      "pluginVersion": "9.5.3",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "expr": "yrfUpTime / 100",
@@ -111,7 +154,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bQ_CKFS4z"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -144,7 +187,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"1\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"1\"}"
             },
             "properties": [
               {
@@ -156,7 +199,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"2\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"2\"}"
             },
             "properties": [
               {
@@ -168,7 +211,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"3\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"3\"}"
             },
             "properties": [
               {
@@ -180,7 +223,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"4\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"4\"}"
             },
             "properties": [
               {
@@ -210,12 +253,12 @@
         "showThresholdLabels": false,
         "showThresholdMarkers": true
       },
-      "pluginVersion": "9.1.8",
+      "pluginVersion": "9.5.3",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "expr": "yrhMultiCpuUtil5sec",
@@ -230,7 +273,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bQ_CKFS4z"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -284,7 +327,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"1\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"1\"}"
             },
             "properties": [
               {
@@ -296,7 +339,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"2\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"2\"}"
             },
             "properties": [
               {
@@ -308,7 +351,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"3\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"3\"}"
             },
             "properties": [
               {
@@ -320,7 +363,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"4\"}"
+              "options": "{__name__=\"yrhMultiCpuUtil5sec\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\", yrhMultiCpuIndex=\"4\"}"
             },
             "properties": [
               {
@@ -358,7 +401,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "expr": "yrhMultiCpuUtil5sec",
@@ -373,7 +416,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bQ_CKFS4z"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -427,7 +470,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{__name__=\"yrhMemoryUtil\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"RTX1300\", vendor=\"yamaha\"}"
+              "options": "{__name__=\"yrhMemoryUtil\", instance=\"192.168.100.1\", job=\"snmp.rtx1300\", name=\"rtx1300\", vendor=\"yamaha\"}"
             },
             "properties": [
               {
@@ -465,7 +508,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "expr": "yrhMemoryUtil",
@@ -480,7 +523,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bQ_CKFS4z"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -587,7 +630,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "exemplar": false,
@@ -602,7 +645,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "expr": "delta(ifOutOctets{ifIndex=\"2\"}[$__interval])",
@@ -618,7 +661,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bQ_CKFS4z"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -721,7 +764,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "exemplar": false,
@@ -736,7 +779,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bQ_CKFS4z"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
           "expr": "delta(ifOutOctets{ifIndex=\"1\"}[$__interval])",
@@ -751,7 +794,7 @@
     }
   ],
   "refresh": "5s",
-  "schemaVersion": 37,
+  "schemaVersion": 38,
   "style": "dark",
   "tags": [],
   "templating": {
@@ -764,8 +807,8 @@
   "timepicker": {},
   "timezone": "Asia/Tokyo",
   "title": "RTX1300",
-  "uid": "eEntLKSVz",
-  "version": 10,
+  "uid": "eEntLKSVz2",
+  "version": 1,
   "weekStart": "sunday"
 }
 ```
