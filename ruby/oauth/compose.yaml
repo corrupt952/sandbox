@@ -1,0 +1,31 @@
+services:
+  app:
+    image: ruby:3
+    command: ruby main.rb
+    working_dir: /app
+    environment:
+      NOTION_CLIENT_ID: $NOTION_CLIENT_ID
+      NOTION_CLIENT_SECRET: $NOTION_CLIENT_SECRET
+    ports:
+      - 3000:3000
+    volumes:
+      - .:/app
+      - gems-volume:/usr/local/bundle
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7.2
+
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    ports:
+      - 8001:8001
+    volumes:
+      - redisinsight-volume:/db
+    depends_on:
+      - redis
+
+volumes:
+  gems-volume: {}
+  redisinsight-volume: {}
