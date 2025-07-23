@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Print changed files
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git pull origin ${{ github.event.pull_request.base.ref }}
           git branch --all
           FILES=$(git diff --name-only ${{ github.event.pull_request.base.ref }} ${{ github.sha }})
           echo "Changed files in this PR: $FILES"
