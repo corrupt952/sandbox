@@ -1,0 +1,20 @@
+name: Trigger Check Test
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/**/*.yml"
+      - ".github/**/*.yaml"
+
+jobs:
+  check_diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print changed files
+        run: |
+          FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          echo "Changed files in this PR: $FILES"
