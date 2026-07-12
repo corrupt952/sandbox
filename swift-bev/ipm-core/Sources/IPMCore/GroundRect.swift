@@ -4,7 +4,7 @@ import simd
 /// A metric rectangle lying on a horizontal ground plane `y = planeY` in
 /// world space (ARKit convention: +Y is up). The rectangle is centered at a
 /// given world point and oriented by a facing direction in the X/Z plane.
-public struct GroundRect {
+public struct GroundRect: Sendable {
   /// Width of the rectangle in meters, measured along the local "right" axis.
   public var width: Double
 
