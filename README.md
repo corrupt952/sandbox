@@ -16,6 +16,7 @@ Each directory is self-contained; see its README for details and setup.
 | [docker-run-and-exec-redirect-file](docker-run-and-exec-redirect-file/) | Feeding a local script to `docker run` / `docker exec` via stdin |
 | [docker-unix-domain-socket](docker-unix-domain-socket/) | Nginx → Go app communication over a Unix domain socket shared through a compose volume |
 | [envoy-http-front-envoy](envoy-http-front-envoy/) | Minimal Envoy front proxy in front of an nginx backend (HTTP/1.1) |
+| [github-actions-workflows](github-actions-workflows/) | Retired GitHub Actions experiments (concurrency control, triggers, matrix builds) |
 | [envoy-http-front-proxy-benchmark](envoy-http-front-proxy-benchmark/) | Benchmarking Envoy vs nginx as a front proxy with `wrk` |
 | [mermaid-diagrams](mermaid-diagrams/) | Gallery of Mermaid diagram syntax samples |
 | [nginx-logging-response-headers](nginx-logging-response-headers/) | Logging an upstream response header in nginx while hiding it from the client |
@@ -24,10 +25,6 @@ Each directory is self-contained; see its README for details and setup.
 | [ruby-oauth](ruby-oauth/) | Notion OAuth2 authorization-code flow in a minimal Sinatra app |
 | [ruby-system-linkage](ruby-system-linkage/) | Syncing data between two Rails apps through a shared engine, JSON API, and a Sidekiq worker |
 | [ruby-unicorn-timeout](ruby-unicorn-timeout/) | Unicorn worker timeout behavior behind nginx |
-| [ruby-yamaha-diff](ruby-yamaha-diff/) | Dumping a Yamaha RTX router config over SSH-tunneled Telnet |
+| [ruby-yamaha-config-dump](ruby-yamaha-config-dump/) | Dumping a Yamaha RTX router config over SSH-tunneled Telnet |
 | [terraform-archive-file](terraform-archive-file/) | Zip creation patterns with Terraform's `archive_file` data source |
 | [terraform-lambroll](terraform-lambroll/) | Deploying a TypeScript Lambda with Terraform (infra) + lambroll (function code) |
-
-The workflows under [.github/workflows](.github/workflows/) are experiments themselves
-(GitHub Actions concurrency control, `workflow_dispatch`, matrix multi-stage Docker builds,
-path-filtered triggers) rather than CI for this repository.
