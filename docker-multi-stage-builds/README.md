@@ -17,8 +17,9 @@ docker build --target staging -t redis-staging .
 ```
 
 The companion GitHub Actions workflow
-(`.github/workflows/docker_multi_stage_build.yaml`) builds the `staging` and
-`production` targets from this directory via a build matrix.
+([github-actions-workflows/docker_multi_stage_build.yaml](../github-actions-workflows/docker_multi_stage_build.yaml),
+retired from `.github/workflows/`) builds the `staging` and `production`
+targets from this directory via a build matrix.
 
 ## Notes
 
