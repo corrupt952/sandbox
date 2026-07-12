@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neon Butterfly Hands</title>
+  <style>
+    :root {
+      --bg-0: #02030a;
+      --bg-1: #050818;
+      --text: #9dfaff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-0);
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(120% 90% at 50% 100%, rgba(40, 255, 160, 0.08) 0%, rgba(0, 0, 0, 0) 55%),
+        radial-gradient(90% 60% at 50% 0%, rgba(0, 180, 255, 0.16) 0%, rgba(0, 0, 0, 0) 70%),
+        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
+    }
+
+    #video,
+    #canvas,
+    #atmosphere {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #video {
+      object-fit: cover;
+      transform: scaleX(-1);
+      opacity: 1;
+    }
+
+    #canvas,
+    #atmosphere {
+      pointer-events: none;
+    }
+
+    #atmosphere {
+      display: none;
+    }
+
+    #status {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      z-index: 10;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(125, 249, 255, 0.35);
+      background: rgba(3, 8, 24, 0.5);
+      color: var(--text);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 8px rgba(125, 249, 255, 0.9);
+      backdrop-filter: blur(4px);
+      transition: opacity 500ms ease;
+    }
+
+    #status.hidden {
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div id="atmosphere"></div>
+    <div id="status">Detecting hands...</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script>
+    (function () {
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const status = document.getElementById("status");
+      const ctx = canvas.getContext("2d", { alpha: true });
+
+      const NEON_COLORS = ["#00FFFF", "#FF00FF", "#FF69B4", "#39FF14", "#7DF9FF"];
+      const PALM_INDICES = [0, 5, 9, 13, 17];
+      const MAX_PARTICLES = 50;
+
+      const particles = [];
+      const handsNow = [];
+      const emitterCooldown = new Map();
+
+      let width = 0;
+      let height = 0;
+      let firstHandDetected = false;
+      let lastTime = performance.now();
+
+      function resizeCanvas() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#02030a";
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      function getPalmCenter(landmarks) {
+        let x = 0;
+        let y = 0;
+
+        for (let i = 0; i < PALM_INDICES.length; i += 1) {
+          const p = landmarks[PALM_INDICES[i]];
+          x += p.x;
+          y += p.y;
+        }
+
+        return {
+          x: x / PALM_INDICES.length,
+          y: y / PALM_INDICES.length
+        };
+      }
+
+      function isHandOpen(landmarks) {
+        const wrist = landmarks[0];
+        const fingertips = [8, 12, 16, 20];
+        const middleBase = landmarks[9];
+        const palmSize = Math.hypot(middleBase.x - wrist.x, middleBase.y - wrist.y);
+        if (palmSize < 0.001) return false;
+
+        let extended = 0;
+        for (const tip of fingertips) {
+          const dist = Math.hypot(landmarks[tip].x - wrist.x, landmarks[tip].y - wrist.y);
+          if (dist > palmSize * 1.6) extended++;
+        }
+        return extended >= 3;
+      }
+
+      function spawnButterfly(baseX, baseY, palmAngle) {
+        if (particles.length >= MAX_PARTICLES) {
+          particles.splice(0, particles.length - MAX_PARTICLES + 1);
+        }
+
+        const spread = (Math.random() - 0.5) * 1.2;
+        const angle = palmAngle + spread;
+        const speed = 100 + Math.random() * 140;
+
+        particles.push({
+          x: baseX + (Math.random() - 0.5) * 10,
+          y: baseY + (Math.random() - 0.5) * 10,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          age: 0,
+          life: 3 + Math.random() * 2,
+          size: 7 + Math.random() * 8,
+          phase: Math.random() * Math.PI * 2,
+          flapSpeed: 8 + Math.random() * 6,
+          driftAmp: 12 + Math.random() * 20,
+          driftFreq: 1.6 + Math.random() * 2.5,
+          sway: (Math.random() - 0.5) * 0.7,
+          color: NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)]
+        });
+      }
+
+      function updateParticles(dt) {
+        for (let i = particles.length - 1; i >= 0; i -= 1) {
+          const p = particles[i];
+          p.age += dt;
+
+          if (p.age >= p.life) {
+            particles.splice(i, 1);
+            continue;
+          }
+
+          const lateral = Math.sin((p.age * p.driftFreq) + p.phase) * p.driftAmp;
+          p.x += (p.vx + lateral) * dt;
+          p.y += p.vy * dt;
+
+          p.vx *= 0.992;
+          p.vy += 4 * dt;
+
+          if (p.x < -80 || p.x > width + 80 || p.y < -80 || p.y > height + 80) {
+            particles.splice(i, 1);
+          }
+        }
+      }
+
+      function drawButterfly(p) {
+        const lifeT = p.age / p.life;
+        const alpha = 1 - lifeT;
+        const flap = Math.sin((p.age * p.flapSpeed) + p.phase);
+        const wingSwing = flap * 0.55;
+        const heading = Math.atan2(p.vy, p.vx) + Math.PI / 2;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(heading * 0.22 + p.sway + Math.sin(p.age * 3 + p.phase) * 0.14);
+
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 26;
+
+        for (const side of [-1, 1]) {
+          ctx.save();
+          ctx.scale(side, 1);
+          ctx.rotate(wingSwing * side);
+
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.quadraticCurveTo(p.size * 1.3, -p.size * 1.0, p.size * 2.2, -p.size * 0.08);
+          ctx.quadraticCurveTo(p.size * 1.35, p.size * 0.95, 0, 0);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.restore();
+        }
+
+        ctx.globalAlpha = alpha;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.size * 0.17, p.size * 0.72, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(255,255,255,0.55)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, -p.size * 0.45);
+        ctx.quadraticCurveTo(-p.size * 0.22, -p.size * 0.9, -p.size * 0.36, -p.size * 1.12);
+        ctx.moveTo(0, -p.size * 0.45);
+        ctx.quadraticCurveTo(p.size * 0.22, -p.size * 0.9, p.size * 0.36, -p.size * 1.12);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      function emitFromHands(dt) {
+        const seen = new Set();
+
+        for (let i = 0; i < handsNow.length; i += 1) {
+          const hand = handsNow[i];
+          seen.add(hand.id);
+
+          let cooldown = emitterCooldown.has(hand.id) ? emitterCooldown.get(hand.id) : Math.random() * 0.25;
+          cooldown -= dt;
+
+          while (cooldown <= 0) {
+            spawnButterfly(hand.x, hand.y, hand.angle);
+            cooldown += 0.2 + Math.random() * 0.13;
+
+            if (particles.length >= MAX_PARTICLES) {
+              break;
+            }
+          }
+
+          emitterCooldown.set(hand.id, cooldown);
+        }
+
+        for (const key of emitterCooldown.keys()) {
+          if (!seen.has(key)) {
+            emitterCooldown.delete(key);
+          }
+        }
+      }
+
+      function render() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let i = 0; i < particles.length; i += 1) {
+          drawButterfly(particles[i]);
+        }
+      }
+
+      function animate(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.05);
+        lastTime = now;
+
+        emitFromHands(dt);
+        updateParticles(dt);
+        render();
+
+        requestAnimationFrame(animate);
+      }
+
+      function onResults(results) {
+        handsNow.length = 0;
+
+        const landmarksList = results.multiHandLandmarks || [];
+        const handednessList = results.multiHandedness || [];
+
+        if (landmarksList.length > 0 && !firstHandDetected) {
+          firstHandDetected = true;
+          status.classList.add("hidden");
+          setTimeout(function () {
+            status.style.display = "none";
+          }, 550);
+        }
+
+        for (let i = 0; i < landmarksList.length; i += 1) {
+          if (!isHandOpen(landmarksList[i])) continue;
+
+          const center = getPalmCenter(landmarksList[i]);
+          const handedness = handednessList[i] && handednessList[i].label ? handednessList[i].label : "Hand" + i;
+
+          const wrist = landmarksList[i][0];
+          const middleMCP = landmarksList[i][9];
+          const dirX = middleMCP.x - wrist.x;
+          const dirY = middleMCP.y - wrist.y;
+          const palmAngle = Math.atan2(dirY, -dirX);
+
+          handsNow.push({
+            id: handedness,
+            x: (1 - center.x) * width,
+            y: center.y * height,
+            angle: palmAngle
+          });
+        }
+      }
+
+      async function start() {
+        resizeCanvas();
+        window.addEventListener("resize", resizeCanvas);
+        requestAnimationFrame(animate);
+
+        if (typeof Hands === "undefined" || typeof Camera === "undefined") {
+          status.textContent = "MediaPipe failed to load";
+          return;
+        }
+
+        const hands = new Hands({
+          locateFile: function (file) {
+            return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" + file;
+          }
+        });
+
+        hands.setOptions({
+          maxNumHands: 2,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(video, {
+          onFrame: async function () {
+            await hands.send({ image: video });
+          },
+          width: 1280,
+          height: 720
+        });
+
+        try {
+          await camera.start();
+        } catch (error) {
+          status.textContent = "Camera access required";
+          status.classList.remove("hidden");
+          status.style.display = "block";
+          console.error(error);
+        }
+      }
+
+      start();
+    })();
+  </script>
+</body>
+</html>
