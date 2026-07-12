@@ -21,13 +21,20 @@ Each directory is self-contained; see its README for details and setup.
 | [envoy-http-front-proxy-benchmark](envoy-http-front-proxy-benchmark/) | Benchmarking Envoy vs nginx as a front proxy with `wrk` |
 | [mermaid-diagrams](mermaid-diagrams/) | Gallery of Mermaid diagram syntax samples |
 | [nginx-logging-response-headers](nginx-logging-response-headers/) | Logging an upstream response header in nginx while hiding it from the client |
+| [node-qr-combine](node-qr-combine/) | Multi-device room prototype that splits/combines a QR payload across up to 4 devices |
 | [ruby-configurable](ruby-configurable/) | Layered per-environment settings in Rails with dry-configurable |
 | [ruby-graceful-delayed](ruby-graceful-delayed/) | Graceful shutdown behavior of Delayed Job workers during long-running jobs |
 | [ruby-oauth](ruby-oauth/) | Notion OAuth2 authorization-code flow in a minimal Sinatra app |
 | [ruby-system-linkage](ruby-system-linkage/) | Syncing data between two Rails apps through a shared engine, JSON API, and a Sidekiq worker |
 | [ruby-unicorn-timeout](ruby-unicorn-timeout/) | Unicorn worker timeout behavior behind nginx |
 | [ruby-yamaha-config-dump](ruby-yamaha-config-dump/) | Dumping a Yamaha RTX router config over SSH-tunneled Telnet |
+| [swift-click-through-poc](swift-click-through-poc/) | Transparent, per-tab click-through NSPanel: polling vs. event-driven approaches |
+| [swift-grain-filter](swift-grain-filter/) | Menu-bar film-grain + glare-dim overlay with no Screen Recording permission |
+| [swift-livetext-demo](swift-livetext-demo/) | VisionKit Live Text OCR and in-place text selection over an image |
+| [swift-pdf-render-bench](swift-pdf-render-bench/) | Benchmarking and parallelizing a PDF reader's page-render + theme-filter path |
 | [swift-perspective-cam](swift-perspective-cam/) | macOS SwiftUI prototype: real-time perspective correction of a camera region |
+| [swift-runloop-hang-demo](swift-runloop-hang-demo/) | Reproduces a `dispatchMain()` vs `RunLoop.main.run()` main-queue deadlock |
 | [swift-text-adventure](swift-text-adventure/) | Tiny text adventure engine in a single Swift file, with a game design memo |
 | [terraform-archive-file](terraform-archive-file/) | Zip creation patterns with Terraform's `archive_file` data source |
 | [terraform-lambroll](terraform-lambroll/) | Deploying a TypeScript Lambda with Terraform (infra) + lambroll (function code) |
+| [webxr-neon-butterfly-hands](webxr-neon-butterfly-hands/) | Single-file HTML/CSS/JS visual demo |
