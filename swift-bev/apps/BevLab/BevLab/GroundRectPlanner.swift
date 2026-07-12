@@ -12,7 +12,9 @@ import simd
 /// Pure helper that computes a metric ground rectangle in front of the
 /// camera, projected onto a known ground plane height. Kept free of ARKit
 /// types so the math can be unit-tested without a live AR session.
-enum GroundRectPlanner {
+/// `nonisolated` opts these helpers out of the project's MainActor default
+/// isolation; they are pure math and get called from ARKit's delegate thread.
+nonisolated enum GroundRectPlanner {
   /// Computes a `GroundRect` centered `standoff` meters in front of the
   /// camera, flattened onto the horizontal plane at `groundY`.
   ///
