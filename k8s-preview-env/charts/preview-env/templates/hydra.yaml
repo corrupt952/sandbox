@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: preview-{{ .Values.previewId }}-hydra
+  labels:
+    preview-id: "{{ .Values.previewId }}"
+    component: hydra
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hydra
+  namespace: preview-{{ .Values.previewId }}-hydra
+  labels:
+    app: hydra
+    preview-id: "{{ .Values.previewId }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hydra
+  template:
+    metadata:
+      labels:
+        app: hydra
+        preview-id: "{{ .Values.previewId }}"
+    spec:
+      containers:
+        - name: hydra
+          image: {{ .Values.hydra.image }}
+          command: ["hydra"]
+          args:
+            - serve
+            - all
+            - --dev
+          env:
+            - name: DSN
+              value: {{ .Values.hydra.dsn }}
+            - name: SECRETS_SYSTEM
+              value: {{ .Values.hydra.secrets.system }}
+            - name: SECRETS_COOKIE
+              value: {{ .Values.hydra.secrets.cookie }}
+            - name: URLS_SELF_ISSUER
+              value: http://hydra.preview-{{ .Values.previewId }}-hydra.svc.cluster.local:4444
+            - name: URLS_LOGIN
+              value: http://sample-app.preview-{{ .Values.previewId }}-sample-app.svc.cluster.local/login
+            - name: URLS_CONSENT
+              value: http://sample-app.preview-{{ .Values.previewId }}-sample-app.svc.cluster.local/consent
+          ports:
+            - name: public
+              containerPort: 4444
+            - name: admin
+              containerPort: 4445
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hydra
+  namespace: preview-{{ .Values.previewId }}-hydra
+  labels:
+    app: hydra
+    preview-id: "{{ .Values.previewId }}"
+spec:
+  selector:
+    app: hydra
+  ports:
+    - name: public
+      port: 4444
+      targetPort: public
+    - name: admin
+      port: 4445
+      targetPort: admin
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hydra
+  namespace: preview-{{ .Values.previewId }}-hydra
+  labels:
+    app: hydra
+    preview-id: "{{ .Values.previewId }}"
+spec:
+  rules:
+    - host: hydra-{{ .Values.previewId }}.preview.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hydra
+                port:
+                  number: 4444
