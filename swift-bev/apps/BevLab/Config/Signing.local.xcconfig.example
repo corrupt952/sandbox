@@ -1,0 +1,13 @@
+//
+//  Signing.local.xcconfig.example
+//  BevLab
+//
+//  Copy this file to "Signing.local.xcconfig" (same directory) and fill in
+//  your own Apple Developer Team ID. Signing.local.xcconfig is gitignored
+//  and must never be committed.
+//
+//  Find your Team ID at https://developer.apple.com/account/#/membership
+//  or in Xcode > Settings > Accounts > (your team) > Team ID.
+//
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
