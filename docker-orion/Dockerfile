@@ -1,5 +1,4 @@
 FROM centos:centos7
-MAINTAINER Kazuki Hasegawa <hasegawa@khasegawa.net>
 RUN yum update -y && \
         yum install -y wget unzip java-1.8.0-openjdk
 RUN useradd -m corrupt952
