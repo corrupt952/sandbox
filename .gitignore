@@ -1,4 +1,8 @@
 **/dist/**/*
+*.profraw
+.claude/
 
 /docker-prometheus-grafana/grafana
 /docker-prometheus-grafana/prometheus
+/swift-perspective-cam/build/
+/swift-text-adventure/adventure_game
