@@ -31,6 +31,7 @@ Each directory is self-contained; see its README for details and setup.
 | [swift-click-through-poc](swift-click-through-poc/) | Transparent, per-tab click-through NSPanel: polling vs. event-driven approaches |
 | [swift-dave-poc](swift-dave-poc/) | Swift wrapper around Discord's libdave (DAVE E2EE protocol) C API |
 | [swift-grain-filter](swift-grain-filter/) | Menu-bar film-grain + glare-dim overlay with no Screen Recording permission |
+| [swift-io-model-lab](swift-io-model-lab/) | From-scratch echo server comparing blocking/threaded/non-blocking IO, with a live timeline dashboard |
 | [swift-jscore-plugin-sandbox](swift-jscore-plugin-sandbox/) | Sandboxed plugin scripts via JavaScriptCore: VM isolation + permission-gated host bridge |
 | [swift-livetext-demo](swift-livetext-demo/) | VisionKit Live Text OCR and in-place text selection over an image |
 | [swift-pdf-render-bench](swift-pdf-render-bench/) | Benchmarking and parallelizing a PDF reader's page-render + theme-filter path |
