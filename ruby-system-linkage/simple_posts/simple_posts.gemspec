@@ -8,7 +8,6 @@ Gem::Specification.new do |s|
   s.name        = "simple_posts"
   s.version     = SimplePosts::VERSION
   s.authors     = ["Kazuki Hasegawa"]
-  s.email       = ["hasegawa@khasegawa.net"]
   s.homepage    = "https://github.com/corrupt952/survey"
   s.summary     = "TODO: Summary of SimplePosts."
   s.description = "TODO: Description of SimplePosts."

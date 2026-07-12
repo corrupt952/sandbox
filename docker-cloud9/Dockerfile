@@ -1,5 +1,4 @@
 FROM centos:centos7
-MAINTAINER Kazuki Hasegawa <hasegawa@khasegawa.net>
 RUN yum update -y && \
         yum groupinstall -y "Development Tools" && \
         yum install -y libxml2-devel ncurses ncurses-devel tmux libffi-devel openssl openssl-devel
