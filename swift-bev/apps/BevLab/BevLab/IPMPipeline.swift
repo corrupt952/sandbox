@@ -18,7 +18,10 @@ import simd
 /// Holds a reused `CIContext` since creating one per frame is expensive.
 /// Every method here is otherwise stateless: given the same inputs it
 /// produces the same output.
-final class IPMPipeline {
+///
+/// `nonisolated` opts this class out of the project's MainActor default
+/// isolation so `BEVFrameProcessor` can call it from its background queue.
+nonisolated final class IPMPipeline {
   /// Fixed square output size (in pixels) for the rectified BEV image.
   static let outputSize = 512
 
@@ -101,24 +104,27 @@ final class IPMPipeline {
   /// `ARCamera.projectPoint` for the same corners, returning the max
   /// per-axis pixel difference across all 4 corners that are visible to
   /// both projections.
+  ///
+  /// Takes `camera`/`imageWidth`/`imageHeight` rather than an `ARFrame` so
+  /// callers don't need to hold an `ARFrame` alive just to run this check.
   func crossCheck(
-    frame: ARFrame,
+    camera: ARCamera,
+    imageWidth: Int,
+    imageHeight: Int,
     groundCorners: [SIMD3<Double>]
   ) -> CrossCheckResult {
-    let imageWidth = CVPixelBufferGetWidth(frame.capturedImage)
-    let imageHeight = CVPixelBufferGetHeight(frame.capturedImage)
     let viewportSize = CGSize(width: imageWidth, height: imageHeight)
 
-    let camera = PinholeCamera(
-      intrinsics: simd_double3x3(frame.camera.intrinsics),
-      cameraTransform: simd_double4x4(frame.camera.transform),
+    let pinholeCamera = PinholeCamera(
+      intrinsics: simd_double3x3(camera.intrinsics),
+      cameraTransform: simd_double4x4(camera.transform),
       imageSize: SIMD2<Double>(Double(imageWidth), Double(imageHeight)))
 
     var maxDifference = 0.0
     for corner in groundCorners {
-      guard let ours = camera.project(corner) else { continue }
+      guard let ours = pinholeCamera.project(corner) else { continue }
       let cornerFloat = SIMD3<Float>(Float(corner.x), Float(corner.y), Float(corner.z))
-      let arkitPoint = frame.camera.projectPoint(
+      let arkitPoint = camera.projectPoint(
         cornerFloat, orientation: .landscapeRight, viewportSize: viewportSize)
       let dx = abs(ours.x - Double(arkitPoint.x))
       let dy = abs(ours.y - Double(arkitPoint.y))
