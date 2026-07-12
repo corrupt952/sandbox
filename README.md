@@ -17,6 +17,7 @@ Each directory is self-contained; see its README for details and setup.
 | [docker-unix-domain-socket](docker-unix-domain-socket/) | Nginx → Go app communication over a Unix domain socket shared through a compose volume |
 | [envoy-http-front-envoy](envoy-http-front-envoy/) | Minimal Envoy front proxy in front of an nginx backend (HTTP/1.1) |
 | [github-actions-workflows](github-actions-workflows/) | Retired GitHub Actions experiments (concurrency control, triggers, matrix builds) |
+| [k8s-preview-env](k8s-preview-env/) | Per-PR preview environments with ArgoCD ApplicationSet (PR + Plugin generators) |
 | [envoy-http-front-proxy-benchmark](envoy-http-front-proxy-benchmark/) | Benchmarking Envoy vs nginx as a front proxy with `wrk` |
 | [mermaid-diagrams](mermaid-diagrams/) | Gallery of Mermaid diagram syntax samples |
 | [nginx-logging-response-headers](nginx-logging-response-headers/) | Logging an upstream response header in nginx while hiding it from the client |
@@ -26,5 +27,7 @@ Each directory is self-contained; see its README for details and setup.
 | [ruby-system-linkage](ruby-system-linkage/) | Syncing data between two Rails apps through a shared engine, JSON API, and a Sidekiq worker |
 | [ruby-unicorn-timeout](ruby-unicorn-timeout/) | Unicorn worker timeout behavior behind nginx |
 | [ruby-yamaha-config-dump](ruby-yamaha-config-dump/) | Dumping a Yamaha RTX router config over SSH-tunneled Telnet |
+| [swift-perspective-cam](swift-perspective-cam/) | macOS SwiftUI prototype: real-time perspective correction of a camera region |
+| [swift-text-adventure](swift-text-adventure/) | Tiny text adventure engine in a single Swift file, with a game design memo |
 | [terraform-archive-file](terraform-archive-file/) | Zip creation patterns with Terraform's `archive_file` data source |
 | [terraform-lambroll](terraform-lambroll/) | Deploying a TypeScript Lambda with Terraform (infra) + lambroll (function code) |
