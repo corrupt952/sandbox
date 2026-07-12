@@ -29,7 +29,9 @@ Each directory is self-contained; see its README for details and setup.
 | [ruby-unicorn-timeout](ruby-unicorn-timeout/) | Unicorn worker timeout behavior behind nginx |
 | [ruby-yamaha-config-dump](ruby-yamaha-config-dump/) | Dumping a Yamaha RTX router config over SSH-tunneled Telnet |
 | [swift-click-through-poc](swift-click-through-poc/) | Transparent, per-tab click-through NSPanel: polling vs. event-driven approaches |
+| [swift-dave-poc](swift-dave-poc/) | Swift wrapper around Discord's libdave (DAVE E2EE protocol) C API |
 | [swift-grain-filter](swift-grain-filter/) | Menu-bar film-grain + glare-dim overlay with no Screen Recording permission |
+| [swift-jscore-plugin-sandbox](swift-jscore-plugin-sandbox/) | Sandboxed plugin scripts via JavaScriptCore: VM isolation + permission-gated host bridge |
 | [swift-livetext-demo](swift-livetext-demo/) | VisionKit Live Text OCR and in-place text selection over an image |
 | [swift-pdf-render-bench](swift-pdf-render-bench/) | Benchmarking and parallelizing a PDF reader's page-render + theme-filter path |
 | [swift-perspective-cam](swift-perspective-cam/) | macOS SwiftUI prototype: real-time perspective correction of a camera region |
