@@ -1,0 +1,58 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: preview-env
+  namespace: argocd
+spec:
+  generators:
+    - matrix:
+        generators:
+          - pullRequest:
+              github:
+                owner: corrupt952
+                repo: sandbox
+                tokenRef:
+                  secretName: github-token
+                  key: token
+              requeueAfterSeconds: 60
+          - plugin:
+              configMapRef:
+                name: preview-env-plugin
+              requeueAfterSeconds: 60
+              input:
+                parameters:
+                  branch: "{{branch}}"
+                  branch_slug: "{{branch_slug}}"
+                  number: "{{number}}"
+                  head_sha: "{{head_sha}}"
+  template:
+    metadata:
+      name: "preview-{{number}}"
+      labels:
+        preview-id: "{{number}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/corrupt952/sandbox
+        targetRevision: "{{branch}}"
+        path: k8s-preview-env/charts/preview-env
+        helm:
+          parameters:
+            - name: previewId
+              value: "{{number}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: preview-env-plugin
+  namespace: argocd
+data:
+  token: "$PLUGIN_TOKEN"
+  baseUrl: "http://preview-env-plugin-generator.argocd.svc.cluster.local:8080"

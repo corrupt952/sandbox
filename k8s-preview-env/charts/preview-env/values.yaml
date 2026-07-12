@@ -1,0 +1,12 @@
+previewId: ""
+
+hydra:
+  image: oryd/hydra:v2.2.0
+  dsn: memory
+  secrets:
+    system: preview-secret-not-secure
+    cookie: preview-cookie-not-secure
+
+sampleApp:
+  image: nginx:1.27
+  port: 80
