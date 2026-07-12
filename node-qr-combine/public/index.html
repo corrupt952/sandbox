@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QR Code Combine</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body data-page="index" class="landing-body">
+    <main class="landing-card">
+      <h1>QR Code Combine</h1>
+      <p class="lead">4台の端末を2x2で並べ、1つのQRコードを合体表示します。</p>
+
+      <div class="action-stack">
+        <button id="createRoomBtn" class="primary-btn" type="button">ルームを作成</button>
+
+        <form id="joinForm" class="join-form">
+          <label for="roomCodeInput">ルームコードで参加</label>
+          <div class="join-row">
+            <input
+              id="roomCodeInput"
+              type="text"
+              maxlength="8"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="例: AB12C"
+              required
+            />
+            <button class="secondary-btn" type="submit">参加</button>
+          </div>
+        </form>
+      </div>
+
+      <p id="indexError" class="inline-error"></p>
+      <div class="small-link-row">
+        <a class="tiny-link" href="/debug.html">デバッグモード</a>
+      </div>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

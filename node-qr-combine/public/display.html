@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QR Combine | Display</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body data-page="display" class="display-body">
+    <section id="displaySurface" class="display-surface">
+      <canvas id="fragmentCanvas" aria-label="QR Fragment"></canvas>
+      <div id="displayState" class="display-state">接続中...</div>
+
+      <div id="displayControls" class="display-overlay">
+        <div><strong>Room:</strong> <span id="roomCodeLabel">----</span></div>
+        <div><strong>Role:</strong> <span id="roleLabel">--</span></div>
+        <label class="calibration-label" for="calibrationRange">
+          補正係数
+          <input id="calibrationRange" type="range" min="0.90" max="1.10" step="0.005" value="1.000" />
+        </label>
+        <div class="small">x<span id="calibrationValue">1.000</span></div>
+        <button id="toggleOverlayBtn" class="ghost-btn" type="button">UIを隠す</button>
+      </div>
+
+      <button id="showOverlayBtn" class="ghost-btn overlay-reopen hidden" type="button">UI表示</button>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
