@@ -1,10 +1,10 @@
-# ruby-yamaha-diff
+# ruby-yamaha-config-dump
 
 Fetches the running configuration from a Yamaha RTX router by driving Telnet
 over an SSH session (`net-ssh` + `net-ssh-telnet`). The script switches the
 console to ASCII output and unlimited lines, then prints the result of
-`show config` — the idea being to capture snapshots that can be diffed over
-time (the diff half was never implemented, hence only a dump).
+`show config`. The original idea was to capture snapshots that could be
+diffed over time; only the dump half was implemented.
 
 ## How to run
 
@@ -19,5 +19,4 @@ ruby main.rb
 
 ## Notes
 
-- Despite the name, there is no diff logic — the script only dumps the config.
 - No Gemfile or `.ruby-version`; dependencies must be installed manually.
