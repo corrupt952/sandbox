@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QR Combine | Debug</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body data-page="debug" class="debug-body">
+    <main class="debug-panel">
+      <header class="card debug-header">
+        <h1>QR Combine Debug</h1>
+        <p class="small">1画面で4分割の見え方を確認できます。</p>
+        <a class="tiny-link" href="./index.html">トップへ戻る</a>
+      </header>
+
+      <section class="card debug-controls-card">
+        <label for="debugQrTextInput">QRコンテンツ</label>
+        <textarea id="debugQrTextInput" rows="3" placeholder="URLや文字列を入力">https://example.com</textarea>
+
+        <div class="debug-controls-grid">
+          <div class="debug-control">
+            <label for="debugModuleMmRange">モジュールサイズ (mm)</label>
+            <div class="mm-controls">
+              <input id="debugModuleMmRange" type="range" min="0.6" max="2.5" step="0.05" value="1.2" />
+              <input id="debugModuleMmNumber" type="number" min="0.6" max="2.5" step="0.05" value="1.2" />
+            </div>
+          </div>
+
+          <div class="debug-control">
+            <label for="debugGapRange">ベゼルギャップ (px)</label>
+            <div class="debug-gap-row">
+              <input id="debugGapRange" type="range" min="0" max="20" step="1" value="0" />
+              <span id="debugGapValue">0px</span>
+            </div>
+          </div>
+
+          <label class="debug-checkbox">
+            <input id="debugShowLabelsToggle" type="checkbox" checked />
+            区画ラベル (TL/TR/BL/BR) を表示
+          </label>
+        </div>
+
+        <p id="debugStatus" class="small"></p>
+      </section>
+
+      <section class="card">
+        <h2>ドラッグシミュレーション</h2>
+        <div class="debug-sim-wrap">
+          <canvas id="debugSimCanvas" aria-label="Simulation canvas"></canvas>
+        </div>
+        <div class="debug-actions">
+          <button id="debugResetPositionsBtn" class="secondary-btn" type="button">Reset positions</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>スキャン結果</h2>
+        <div id="scanResultArea" class="debug-scan-block">
+          <p class="small">リアルタイム読み取り結果</p>
+          <div id="debugScanResult" class="debug-scan-result fail">
+            <span id="debugScanDot" class="debug-scan-dot"></span>
+            <span id="debugScanText">読み取り不可</span>
+          </div>
+        </div>
+        <button id="togglePipelineBtn" class="ghost-btn" type="button">パイプライン詳細を表示</button>
+        <div id="pipelineDebug" class="hidden">
+          <div class="pipeline-steps">
+            <div class="pipeline-step">
+              <h4>1. 二値化</h4>
+              <canvas id="pipelineBinarized" aria-label="Pipeline Binarized"></canvas>
+            </div>
+            <div class="pipeline-step">
+              <h4>2. エリア検出</h4>
+              <canvas id="pipelineRegions" aria-label="Pipeline Regions"></canvas>
+            </div>
+            <div class="pipeline-step">
+              <h4>3. 正規化 + 結合</h4>
+              <canvas id="pipelineCombined" aria-label="Pipeline Combined"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>フルQR比較</h2>
+        <div class="debug-full-wrap">
+          <canvas id="debugFullCanvas" aria-label="Full QR"></canvas>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="./qr-pipeline.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

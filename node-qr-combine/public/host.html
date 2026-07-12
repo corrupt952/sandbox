@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QR Combine | Host</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body data-page="host" class="host-body">
+    <main id="hostPanel" class="host-panel">
+      <header class="host-header card">
+        <h1>QR Code Combine - Host</h1>
+        <p class="small">ルーム作成後、3人が参加すると4分割表示が完成します。</p>
+
+        <div class="room-meta">
+          <div><strong>Room:</strong> <span id="roomCodeLabel">----</span></div>
+          <div><strong>Your role:</strong> <span id="hostRoleLabel">--</span></div>
+          <div><strong>Members:</strong> <span id="memberCount">0 / 4</span></div>
+        </div>
+
+        <div class="share-row">
+          <input id="joinUrlInput" type="text" readonly />
+          <button id="copyJoinUrlBtn" class="secondary-btn" type="button">URLコピー</button>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>QRコンテンツ</h2>
+        <textarea id="qrTextInput" rows="4" placeholder="URLや文字列を入力"></textarea>
+        <div class="row-end">
+          <button id="updateQrBtn" class="primary-btn" type="button">QRを更新</button>
+        </div>
+        <p id="qrStatusLine" class="small"></p>
+      </section>
+
+      <section class="card">
+        <h2>サイズ設定</h2>
+        <p class="small">1モジュールの物理サイズ(mm)。全端末で揃える基準になります。</p>
+        <div class="mm-controls">
+          <input id="moduleMmRange" type="range" min="0.6" max="2.5" step="0.05" value="1.2" />
+          <input id="moduleMmNumber" type="number" min="0.6" max="2.5" step="0.05" value="1.2" />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>参加スロット</h2>
+        <ul id="roleSlots" class="slot-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>表示</h2>
+        <p class="small">実際の表示面。開始すると全画面の白背景 + 自分の断片を表示します。</p>
+        <div class="row-end">
+          <button id="enterDisplayBtn" class="primary-btn" type="button">この端末で表示開始</button>
+        </div>
+      </section>
+    </main>
+
+    <section id="hostDisplaySurface" class="display-surface hidden">
+      <canvas id="fragmentCanvas" aria-label="QR Fragment"></canvas>
+      <div id="displayState" class="display-state">ルーム接続中...</div>
+
+      <div class="display-overlay">
+        <div><strong>Room:</strong> <span id="displayRoomCode">----</span></div>
+        <div><strong>Role:</strong> <span id="displayRole">--</span></div>
+        <button id="exitDisplayBtn" class="ghost-btn" type="button">設定へ戻る</button>
+      </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
