@@ -1,0 +1,12 @@
+//
+//  Signing.xcconfig
+//  BevLab
+//
+//  Committed. Do NOT put real signing values here.
+//  The real Apple Developer Team ID lives in the gitignored
+//  Signing.local.xcconfig (copy Signing.local.xcconfig.example to create it).
+//
+
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"
