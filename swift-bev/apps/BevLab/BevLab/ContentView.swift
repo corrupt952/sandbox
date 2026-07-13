@@ -10,6 +10,10 @@ import SwiftUI
 struct ContentView: View {
   @State private var viewModel = BEVViewModel()
 
+  /// Temp-file URL of a just-captured BEV snapshot; non-nil while the share
+  /// sheet is presented.
+  @State private var snapshotShareURL: URL?
+
   var body: some View {
     GeometryReader { proxy in
       ZStack(alignment: .topTrailing) {
@@ -27,15 +31,35 @@ struct ContentView: View {
     }
     .onAppear { viewModel.start() }
     .onDisappear { viewModel.stop() }
+    .sheet(
+      isPresented: Binding(
+        get: { snapshotShareURL != nil },
+        set: { if $0 == false { snapshotShareURL = nil } })
+    ) {
+      if let snapshotShareURL {
+        ActivityShareSheet(activityItems: [snapshotShareURL])
+      }
+    }
   }
 
   // MARK: - Subviews
 
   private func bevPanel(width: CGFloat) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text("BEV")
-        .font(.caption.bold())
-        .foregroundStyle(.white)
+      HStack {
+        Text("BEV")
+          .font(.caption.bold())
+          .foregroundStyle(.white)
+        Spacer()
+        Button {
+          didTapSnapshotButton()
+        } label: {
+          Image(systemName: "square.and.arrow.up")
+            .font(.caption.bold())
+            .foregroundStyle(.white)
+        }
+        .disabled(viewModel.bevImage == nil)
+      }
 
       ZStack {
         Color.black.opacity(0.6)
@@ -80,6 +104,15 @@ struct ContentView: View {
       .disabled(viewModel.hasGroundPlane == false)
     }
     .padding(.bottom, 24)
+  }
+
+  // MARK: - Private methods
+
+  /// Captures the current BEV image as a native-resolution PNG and presents
+  /// the share sheet for it.
+  private func didTapSnapshotButton() {
+    guard let snapshot = viewModel.makeSnapshot() else { return }
+    snapshotShareURL = snapshot.writeToTemporaryFile()
   }
 }
 
