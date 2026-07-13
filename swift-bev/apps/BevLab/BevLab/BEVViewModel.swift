@@ -8,6 +8,7 @@
 import ARKit
 import IPMCore
 import Observation
+import UIKit
 
 /// Owns the `ARSession`, tracks the first detected horizontal plane, and
 /// publishes the live bird's-eye-view image produced by `BEVFrameProcessor`.
@@ -64,6 +65,21 @@ final class BEVViewModel: NSObject {
   /// Stops the AR session, e.g. when the view disappears.
   func stop() {
     session.pause()
+  }
+
+  /// PNG snapshot of the current BEV image at native resolution, or `nil`
+  /// when no BEV image is available. Used by the share button so saved
+  /// files preserve the exact output pixels for metric-scale measurement.
+  func makeSnapshot() -> BEVSnapshot? {
+    guard let bevImage else { return nil }
+    guard let pngData = UIImage(cgImage: bevImage).pngData() else { return nil }
+    let timestamp = Date().formatted(
+      .verbatim(
+        "\(year: .defaultDigits)\(month: .twoDigits)\(day: .twoDigits)-\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased))\(minute: .twoDigits)\(second: .twoDigits)",
+        timeZone: .current, calendar: .current))
+    return BEVSnapshot(
+      pngData: pngData,
+      filename: "bev-\(Int(rectSize * 100))cm-\(timestamp).png")
   }
 
   // MARK: - Private
