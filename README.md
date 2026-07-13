@@ -30,11 +30,15 @@ Each directory is self-contained; see its README for details and setup.
 | [ruby-yamaha-config-dump](ruby-yamaha-config-dump/) | Dumping a Yamaha RTX router config over SSH-tunneled Telnet |
 | [swift-bev](swift-bev/) | iPhone first-person → bird's-eye-view (BEV); stage 1 is a headless IPM/homography geometry package |
 | [swift-click-through-poc](swift-click-through-poc/) | Transparent, per-tab click-through NSPanel: polling vs. event-driven approaches |
+| [swift-coreml-embed](swift-coreml-embed/) | Compile a .mlmodel on-device and run CLI image classification (train→convert→embed loop) |
+| [swift-createml-image-classifier](swift-createml-image-classifier/) | Create ML image classifier trained programmatically on generated datasets (Image Playground or CoreGraphics) |
+| [swift-createml-tabular](swift-createml-tabular/) | Miniature Kaggle loop: Create ML tabular models on Titanic CSV with feature tweaking from the CLI |
 | [swift-dave-poc](swift-dave-poc/) | Swift wrapper around Discord's libdave (DAVE E2EE protocol) C API |
 | [swift-grain-filter](swift-grain-filter/) | Menu-bar film-grain + glare-dim overlay with no Screen Recording permission |
 | [swift-io-model-lab](swift-io-model-lab/) | From-scratch echo server comparing blocking/threaded/non-blocking IO, with a live timeline dashboard |
 | [swift-jscore-plugin-sandbox](swift-jscore-plugin-sandbox/) | Sandboxed plugin scripts via JavaScriptCore: VM isolation + permission-gated host bridge |
 | [swift-livetext-demo](swift-livetext-demo/) | VisionKit Live Text OCR and in-place text selection over an image |
+| [swift-mlx-mnist](swift-mlx-mnist/) | Hand-written MLP training loop on MLX Swift (MNIST, GPU) |
 | [swift-pdf-render-bench](swift-pdf-render-bench/) | Benchmarking and parallelizing a PDF reader's page-render + theme-filter path |
 | [swift-perspective-cam](swift-perspective-cam/) | macOS SwiftUI prototype: real-time perspective correction of a camera region |
 | [swift-runloop-hang-demo](swift-runloop-hang-demo/) | Reproduces a `dispatchMain()` vs `RunLoop.main.run()` main-queue deadlock |
