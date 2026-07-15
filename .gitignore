@@ -238,6 +238,12 @@ iOSInjectionProject/
 /docker-prometheus-grafana/prometheus
 /swift-perspective-cam/build/
 /swift-text-adventure/adventure_game
+
+# Local Apple signing settings
+**/Config/Signing.local.xcconfig
+
+# Wi-Fi Aware lab local captures
+/wifi-aware-lab/macos/.captures/
 /swift-createml-tabular/data/
 /swift-createml-image-classifier/generated/
 .swiftpm/

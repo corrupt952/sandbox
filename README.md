@@ -46,3 +46,4 @@ Each directory is self-contained; see its README for details and setup.
 | [terraform-archive-file](terraform-archive-file/) | Zip creation patterns with Terraform's `archive_file` data source |
 | [terraform-lambroll](terraform-lambroll/) | Deploying a TypeScript Lambda with Terraform (infra) + lambroll (function code) |
 | [webxr-neon-butterfly-hands](webxr-neon-butterfly-hands/) | Single-file HTML/CSS/JS visual demo |
+| [wifi-aware-lab](wifi-aware-lab/) | Public-API Wi-Fi Aware/NAN experiments for iOS, iPadOS, and the macOS SDK boundary |

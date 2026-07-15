@@ -1,0 +1,10 @@
+//
+//  Signing.local.xcconfig.example
+//  wifi-aware-lab
+//
+//  Copy this file to Signing.local.xcconfig and fill in your Apple Developer
+//  Team ID. The destination file is gitignored and must never be committed.
+//
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+

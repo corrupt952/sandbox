@@ -1,0 +1,12 @@
+//
+//  Signing.xcconfig
+//  wifi-aware-lab
+//
+//  Committed. Do not put real signing values here. Developer-specific values
+//  belong in the gitignored Signing.local.xcconfig.
+//
+
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"
+
