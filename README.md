@@ -19,6 +19,7 @@ Each directory is self-contained; see its README for details and setup.
 | [github-actions-workflows](github-actions-workflows/) | Retired GitHub Actions experiments (concurrency control, triggers, matrix builds) |
 | [k8s-preview-env](k8s-preview-env/) | Per-PR preview environments with ArgoCD ApplicationSet (PR + Plugin generators) |
 | [envoy-http-front-proxy-benchmark](envoy-http-front-proxy-benchmark/) | Benchmarking Envoy vs nginx as a front proxy with `wrk` |
+| [lefthook-lab](lefthook-lab/) | Verifying lefthook/hk Git hooks behavior, including a `core.hooksPath` gotcha that can push installs toward global state |
 | [mermaid-diagrams](mermaid-diagrams/) | Gallery of Mermaid diagram syntax samples |
 | [nginx-logging-response-headers](nginx-logging-response-headers/) | Logging an upstream response header in nginx while hiding it from the client |
 | [node-qr-combine](node-qr-combine/) | Multi-device room prototype that splits/combines a QR payload across up to 4 devices |
