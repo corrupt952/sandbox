@@ -247,3 +247,6 @@ iOSInjectionProject/
 /swift-createml-tabular/data/
 /swift-createml-image-classifier/generated/
 .swiftpm/
+
+# lefthook
+/lefthook-lab/testbed/
