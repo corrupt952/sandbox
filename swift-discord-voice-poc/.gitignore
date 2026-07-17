@@ -1,0 +1,7 @@
+.build/
+.swiftpm/
+.direnv/
+.env
+output/
+# libdave is not vendored; see README (build it as a sibling ../libdave checkout)
+/libdave

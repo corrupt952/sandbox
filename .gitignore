@@ -250,3 +250,6 @@ iOSInjectionProject/
 
 # lefthook
 /lefthook-lab/testbed/
+
+# libdave build (shared by swift-dave-poc / swift-discord-voice-poc; not vendored)
+/libdave

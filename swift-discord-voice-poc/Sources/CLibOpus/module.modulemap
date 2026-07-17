@@ -1,0 +1,5 @@
+module CLibOpus [system] {
+    header "shim.h"
+    link "opus"
+    export *
+}
