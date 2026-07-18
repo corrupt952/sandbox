@@ -20,6 +20,9 @@ Each directory is self-contained; see its README for details and setup.
 | [k8s-preview-env](k8s-preview-env/) | Per-PR preview environments with ArgoCD ApplicationSet (PR + Plugin generators) |
 | [envoy-http-front-proxy-benchmark](envoy-http-front-proxy-benchmark/) | Benchmarking Envoy vs nginx as a front proxy with `wrk` |
 | [lefthook-lab](lefthook-lab/) | Verifying lefthook/hk Git hooks behavior, including a `core.hooksPath` gotcha that can push installs toward global state |
+| [m5atom-espnow-lab](m5atom-espnow-lab/) | M5Stack Atom Lite ↔ Basic V2.7 ESP-NOW communication and dynamic pairing, plus RSSI/tx-power notes |
+| [m5atom-led-matrix-lab](m5atom-led-matrix-lab/) | FastLED WS2812B experiments on Atom Lite: LED panel, scrolling-text/eyes hat, and a 32x16 badge with browser simulators |
+| [m5atom-lite-lab](m5atom-lite-lab/) | M5Stack Atom Lite / Basic V2.7 PlatformIO basics: button-to-LED and Atomic Display Base (HDMI) samples |
 | [mermaid-diagrams](mermaid-diagrams/) | Gallery of Mermaid diagram syntax samples |
 | [nginx-logging-response-headers](nginx-logging-response-headers/) | Logging an upstream response header in nginx while hiding it from the client |
 | [node-qr-combine](node-qr-combine/) | Multi-device room prototype that splits/combines a QR payload across up to 4 devices |
