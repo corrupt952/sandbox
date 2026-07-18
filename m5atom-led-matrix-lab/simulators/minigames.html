@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Badge Mini Games (32x16)</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#111; color:#eee;
+  font-family:'Courier New',monospace;
+  height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  user-select:none;
+}
+#header {
+  text-align:center; margin-bottom:16px;
+}
+#header h1 { font-size:14px; color:#0af; letter-spacing:4px; }
+#header .tags { display:flex; gap:8px; justify-content:center; margin-top:8px; }
+.tag { background:#1a3a1a; color:#4f4; border:1px solid #4f4; padding:2px 8px; font-size:10px; border-radius:3px; }
+
+#display-frame {
+  background:#0a0a0a; border:3px solid #333; border-radius:8px;
+  padding:12px; display:inline-block;
+}
+#led-grid {
+  display:grid; grid-template-columns:repeat(32,1fr); gap:1px;
+}
+.led {
+  width:14px; height:14px; border-radius:2px;
+  background:#0a0a0a;
+}
+
+#controls {
+  margin-top:20px; display:flex; flex-direction:column; align-items:center; gap:12px;
+}
+#game-select {
+  display:flex; gap:6px; flex-wrap:wrap; justify-content:center;
+}
+.game-btn {
+  padding:6px 12px; background:#222; border:1px solid #444;
+  color:#aaa; font-family:'Courier New',monospace; font-size:11px;
+  cursor:pointer; border-radius:4px;
+}
+.game-btn:hover { border-color:#0af; color:#0af; }
+.game-btn.active { background:#003344; border-color:#0af; color:#0af; }
+
+#buttons {
+  display:flex; gap:16px; align-items:center; margin-top:8px;
+}
+.hw-btn {
+  width:64px; height:64px; border-radius:50%;
+  font-family:'Courier New',monospace; font-size:16px; font-weight:bold;
+  cursor:pointer; border:3px solid #555;
+  display:flex; align-items:center; justify-content:center;
+  transition:all 0.08s;
+}
+.hw-btn:active, .hw-btn.pressed {
+  transform:scale(0.92);
+  filter:brightness(1.4);
+}
+#btn-a { background:#e44; color:#fff; }
+#btn-b { background:#4a4; color:#fff; }
+#btn-c { background:#48f; color:#fff; }
+
+#info {
+  margin-top:12px; font-size:11px; color:#555; text-align:center; line-height:1.8;
+}
+#info span { color:#0af; }
+#score-line {
+  margin-top:8px; font-size:13px; color:#fa0; text-align:center;
+}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>LED BADGE MINI GAMES</h1>
+  <div class="tags">
+    <span class="tag">32x16 = 512 LEDs</span>
+    <span class="tag">Basic V2.7 Controller</span>
+  </div>
+</div>
+
+<div id="display-frame">
+  <div id="led-grid"></div>
+</div>
+
+<div id="controls">
+  <div id="game-select">
+    <button class="game-btn active" onclick="switchGame('breakout',this)">BREAKOUT</button>
+    <button class="game-btn" onclick="switchGame('tetris',this)">TETRIS</button>
+    <button class="game-btn" onclick="switchGame('snake',this)">SNAKE</button>
+    <button class="game-btn" onclick="switchGame('invaders',this)">INVADERS</button>
+    <button class="game-btn" onclick="switchGame('flappy',this)">FLAPPY</button>
+    <button class="game-btn" onclick="switchGame('pong',this)">PONG</button>
+  </div>
+  <div id="buttons">
+    <div class="hw-btn" id="btn-a" onmousedown="btnDown('a')" onmouseup="btnUp('a')" ontouchstart.prevent="btnDown('a')" ontouchend="btnUp('a')">A</div>
+    <div class="hw-btn" id="btn-b" onmousedown="btnDown('b')" onmouseup="btnUp('b')" ontouchstart.prevent="btnDown('b')" ontouchend="btnUp('b')">B</div>
+    <div class="hw-btn" id="btn-c" onmousedown="btnDown('c')" onmouseup="btnUp('c')" ontouchstart.prevent="btnDown('c')" ontouchend="btnUp('c')">C</div>
+  </div>
+</div>
+<div id="score-line"></div>
+<div id="info">
+  Keys: <span>Z/Left</span>=A  <span>X/Space</span>=B  <span>M/Right</span>=C
+</div>
+
+<script>
+// === Display ===
+const W=32, H=16, TOTAL=W*H;
+const grid=document.getElementById('led-grid');
+const leds=[];
+for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='led';grid.appendChild(d);leds.push(d);}
+
+function cls(){leds.forEach(l=>l.style.background='#0a0a0a');}
+function px(x,y,r,g,b){
+  if(x<0||x>=W||y<0||y>=H)return;
+  leds[y*W+x].style.background=`rgb(${r},${g},${b})`;
+}
+
+// === Input ===
+const btn={a:false,b:false,c:false};
+const btnJust={a:false,b:false,c:false};
+function btnDown(k){btn[k]=true;btnJust[k]=true;document.getElementById('btn-'+k).classList.add('pressed');}
+function btnUp(k){btn[k]=false;document.getElementById('btn-'+k).classList.remove('pressed');}
+document.addEventListener('keydown',e=>{
+  if(e.repeat)return;
+  if(e.key==='z'||e.key==='Z'||e.key==='ArrowLeft')btnDown('a');
+  if(e.key==='x'||e.key==='X'||e.key===' ')btnDown('b');
+  if(e.key==='m'||e.key==='M'||e.key==='ArrowRight')btnDown('c');
+});
+document.addEventListener('keyup',e=>{
+  if(e.key==='z'||e.key==='Z'||e.key==='ArrowLeft')btnUp('a');
+  if(e.key==='x'||e.key==='X'||e.key===' ')btnUp('b');
+  if(e.key==='m'||e.key==='M'||e.key==='ArrowRight')btnUp('c');
+});
+
+// === Game framework ===
+let currentGame=null;
+let score=0;
+function setScore(s){score=s;document.getElementById('score-line').textContent='SCORE: '+s;}
+
+function switchGame(name,el){
+  document.querySelectorAll('.game-btn').forEach(b=>b.classList.remove('active'));
+  if(el)el.classList.add('active');
+  if(games[name]){currentGame=games[name];currentGame.init();}
+}
+
+// === Text helper (3x5 tiny) ===
+const TINY={
+  'A':[0x04,0x0A,0x0E,0x0A,0x0A],'B':[0x06,0x0A,0x06,0x0A,0x06],'C':[0x06,0x08,0x08,0x08,0x06],
+  'D':[0x06,0x0A,0x0A,0x0A,0x06],'E':[0x0E,0x08,0x0C,0x08,0x0E],'F':[0x0E,0x08,0x0C,0x08,0x08],
+  'G':[0x06,0x08,0x0A,0x0A,0x06],'H':[0x0A,0x0A,0x0E,0x0A,0x0A],'I':[0x0E,0x04,0x04,0x04,0x0E],
+  'J':[0x02,0x02,0x02,0x0A,0x04],'K':[0x0A,0x0C,0x08,0x0C,0x0A],'L':[0x08,0x08,0x08,0x08,0x0E],
+  'M':[0x0A,0x0E,0x0E,0x0A,0x0A],'N':[0x0A,0x0E,0x0A,0x0A,0x0A],'O':[0x04,0x0A,0x0A,0x0A,0x04],
+  'P':[0x06,0x0A,0x06,0x08,0x08],'R':[0x06,0x0A,0x06,0x0A,0x0A],'S':[0x06,0x08,0x04,0x02,0x06],
+  'T':[0x0E,0x04,0x04,0x04,0x04],'U':[0x0A,0x0A,0x0A,0x0A,0x04],'V':[0x0A,0x0A,0x0A,0x0A,0x04],
+  'W':[0x0A,0x0A,0x0E,0x0E,0x0A],'X':[0x0A,0x0A,0x04,0x0A,0x0A],'Y':[0x0A,0x0A,0x04,0x04,0x04],
+  'Z':[0x0E,0x02,0x04,0x08,0x0E],
+  '0':[0x04,0x0A,0x0A,0x0A,0x04],'1':[0x04,0x0C,0x04,0x04,0x0E],'2':[0x06,0x02,0x04,0x08,0x0E],
+  '3':[0x06,0x02,0x04,0x02,0x06],'4':[0x0A,0x0A,0x0E,0x02,0x02],'5':[0x0E,0x08,0x0C,0x02,0x0C],
+  '6':[0x06,0x08,0x0E,0x0A,0x04],'7':[0x0E,0x02,0x04,0x04,0x04],'8':[0x04,0x0A,0x04,0x0A,0x04],
+  '9':[0x04,0x0A,0x06,0x02,0x04],' ':[0,0,0,0,0],
+  '!':[0x04,0x04,0x04,0x00,0x04],'-':[0,0,0x0E,0,0],':':[0x00,0x04,0x00,0x04,0x00],
+};
+function drawText(str,x0,y0,r,g,b){
+  for(let i=0;i<str.length;i++){
+    const ch=TINY[str[i].toUpperCase()];if(!ch)continue;
+    for(let row=0;row<5;row++){
+      for(let col=0;col<4;col++){
+        if((ch[row]>>(3-col))&1)px(x0+i*4+col,y0+row,r,g,b);
+      }
+    }
+  }
+}
+
+// ================================================================
+// BREAKOUT - A:left C:right B:launch
+// ================================================================
+const breakout={
+  padX:0, bx:0, by:0, bdx:0, bdy:0, blocks:[], lives:0, running:false, launched:false, moveTick:0,
+  init(){
+    this.padX=13; this.launched=false;
+    this.bx=16; this.by=13.0; this.bdx=0; this.bdy=0;
+    this.lives=3; this.running=true; this.moveTick=0;
+    this.blocks=[];
+    for(let r=0;r<3;r++) for(let c=0;c<16;c++) this.blocks.push({x:c*2,y:r*2+1,alive:true,color:r});
+    setScore(0);
+  },
+  update(){
+    if(!this.running){if(btnJust.b)this.init();return;}
+    // paddle (move every 2 frames when held = 15px/sec)
+    this.moveTick++;
+    if(this.moveTick>=2){
+      this.moveTick=0;
+      if(btn.a&&this.padX>0)this.padX--;
+      if(btn.c&&this.padX<W-6)this.padX++;
+    }
+    // launch
+    if(!this.launched){
+      this.bx=this.padX+3; this.by=H-3;
+      if(btnJust.b){this.launched=true;this.bdx=(Math.random()>0.5?0.4:-0.4);this.bdy=-0.6;}
+      return;
+    }
+    // ball movement
+    this.bx+=this.bdx; this.by+=this.bdy;
+    // wall collision
+    if(this.bx<=0){this.bx=0;this.bdx=Math.abs(this.bdx);}
+    if(this.bx>=W-1){this.bx=W-1;this.bdx=-Math.abs(this.bdx);}
+    if(this.by<=0){this.by=0;this.bdy=Math.abs(this.bdy);}
+    // miss
+    if(this.by>=H){
+      this.lives--;
+      if(this.lives<=0){this.running=false;return;}
+      this.launched=false;
+    }
+    // paddle collision
+    const ibx=Math.round(this.bx), iby=Math.round(this.by);
+    if(iby===H-2&&ibx>=this.padX&&ibx<this.padX+6){
+      this.bdy=-Math.abs(this.bdy);
+      const hit=(ibx-this.padX)/5; // 0..1
+      this.bdx=(hit-0.5)*1.0;
+    }
+    // block collision
+    for(const b of this.blocks){
+      if(!b.alive)continue;
+      if(ibx>=b.x&&ibx<b.x+2&&iby>=b.y&&iby<=b.y){
+        b.alive=false; this.bdy=-this.bdy; setScore(++score); break;
+      }
+    }
+    if(this.blocks.every(b=>!b.alive)){this.init();setScore(score);}
+  },
+  draw(){
+    cls();
+    const colors=[[255,60,60],[255,160,0],[0,200,100]];
+    for(const b of this.blocks){if(!b.alive)continue;const c=colors[b.color];px(b.x,b.y,c[0],c[1],c[2]);px(b.x+1,b.y,c[0],c[1],c[2]);}
+    for(let i=0;i<6;i++)px(this.padX+i,H-1,200,200,200);
+    px(Math.round(this.bx),Math.round(this.by),255,255,255);
+    for(let i=0;i<this.lives;i++)px(i*2,0,255,0,0);
+    if(!this.running){drawText('GAME',8,4,255,60,60);drawText('OVER',8,10,255,60,60);}
+  }
+};
+
+// ================================================================
+// TETRIS - A:left C:right B:rotate
+// ================================================================
+const tetris={
+  board:null, pieceIdx:0, rot:0, px:0, py:0,
+  dropTick:0, dropSpeed:30, running:false,
+  dasDelay:0, dasDir:0, dasRepeat:0,
+  shapes:[
+    [[[0,0],[1,0],[2,0],[3,0]],[[0,0],[0,1],[0,2],[0,3]]],
+    [[[0,0],[1,0],[0,1],[1,1]]],
+    [[[0,0],[1,0],[2,0],[1,1]],[[1,0],[0,1],[1,1],[1,2]],[[1,0],[0,1],[1,1],[2,1]],[[0,0],[0,1],[1,1],[0,2]]],
+    [[[0,0],[1,0],[1,1],[2,1]],[[1,0],[0,1],[1,1],[0,2]]],
+    [[[1,0],[2,0],[0,1],[1,1]],[[0,0],[0,1],[1,1],[1,2]]],
+    [[[0,0],[0,1],[1,1],[2,1]],[[0,0],[1,0],[0,1],[0,2]],[[0,0],[1,0],[2,0],[2,1]],[[1,0],[1,1],[0,2],[1,2]]],
+    [[[2,0],[0,1],[1,1],[2,1]],[[0,0],[0,1],[0,2],[1,2]],[[0,0],[1,0],[2,0],[0,1]],[[0,0],[1,0],[1,1],[1,2]]],
+  ],
+  colors:[[0,255,255],[255,255,0],[180,0,255],[0,255,0],[255,0,0],[255,160,0],[0,100,255]],
+  FW:10, FH:16, OX:11,
+  init(){
+    this.board=Array.from({length:this.FH},()=>new Array(this.FW).fill(-1));
+    this.running=true;this.dropTick=0;this.dropSpeed=30;this.dasDelay=0;this.dasDir=0;
+    setScore(0);this.spawn();
+  },
+  spawn(){
+    this.pieceIdx=Math.floor(Math.random()*this.shapes.length);
+    this.rot=0;this.px=3;this.py=0;
+    if(this.collides(this.px,this.py,this.rot))this.running=false;
+  },
+  cells(r){return this.shapes[this.pieceIdx][r%this.shapes[this.pieceIdx].length];},
+  collides(tx,ty,tr){
+    for(const[cx,cy]of this.cells(tr)){const nx=tx+cx,ny=ty+cy;if(nx<0||nx>=this.FW||ny>=this.FH)return true;if(ny>=0&&this.board[ny][nx]>=0)return true;}return false;
+  },
+  tryMove(dx){const np=this.px+dx;if(!this.collides(np,this.py,this.rot))this.px=np;},
+  lock(){
+    for(const[cx,cy]of this.cells(this.rot)){const nx=this.px+cx,ny=this.py+cy;if(ny>=0)this.board[ny][nx]=this.pieceIdx;}
+    let cleared=0;
+    for(let y=this.FH-1;y>=0;y--){if(this.board[y].every(c=>c>=0)){this.board.splice(y,1);this.board.unshift(new Array(this.FW).fill(-1));cleared++;y++;}}
+    if(cleared>0){setScore(score+[0,100,300,500,800][cleared]);this.dropSpeed=Math.max(6,this.dropSpeed-2);}
+    this.spawn();
+  },
+  update(){
+    if(!this.running){if(btnJust.b)this.init();return;}
+    // DAS: initial press = immediate move, hold = delay 8 frames then repeat every 3
+    if(btnJust.a){this.tryMove(-1);this.dasDir=-1;this.dasDelay=0;}
+    else if(btnJust.c){this.tryMove(1);this.dasDir=1;this.dasDelay=0;}
+    else if((btn.a&&this.dasDir===-1)||(btn.c&&this.dasDir===1)){
+      this.dasDelay++;
+      if(this.dasDelay>=8){this.dasRepeat++;if(this.dasRepeat>=3){this.dasRepeat=0;this.tryMove(this.dasDir);}}
+    } else {this.dasDir=0;this.dasDelay=0;this.dasRepeat=0;}
+    // rotate
+    if(btnJust.b){const nr=(this.rot+1)%this.shapes[this.pieceIdx].length;if(!this.collides(this.px,this.py,nr))this.rot=nr;}
+    // drop
+    this.dropTick++;
+    if(this.dropTick>=this.dropSpeed){this.dropTick=0;if(!this.collides(this.px,this.py+1,this.rot))this.py++;else this.lock();}
+  },
+  draw(){
+    cls();
+    for(let y=0;y<this.FH;y++){px(this.OX-1,y,30,30,30);px(this.OX+this.FW,y,30,30,30);}
+    for(let y=0;y<this.FH;y++)for(let x=0;x<this.FW;x++){if(this.board[y][x]>=0){const c=this.colors[this.board[y][x]];px(this.OX+x,y,c[0],c[1],c[2]);}}
+    if(this.running){const c=this.colors[this.pieceIdx];for(const[cx,cy]of this.cells(this.rot))px(this.OX+this.px+cx,this.py+cy,c[0],c[1],c[2]);}
+    if(!this.running)drawText('END',12,7,255,60,60);
+  }
+};
+
+// ================================================================
+// SNAKE - A:turn left C:turn right B:restart
+// ================================================================
+const snake={
+  body:[], dir:0, food:null, moveTick:0, running:false,
+  dirs:[[1,0],[0,1],[-1,0],[0,-1]], // right, down, left, up
+  moveInterval:6, // move every 6 frames (~5 moves/sec at 30fps)
+  init(){
+    this.body=[{x:16,y:8},{x:15,y:8},{x:14,y:8}];
+    this.dir=0;this.moveTick=0;this.running=true;this.moveInterval=6;
+    setScore(0);this.placeFood();
+  },
+  placeFood(){
+    let x,y,tries=0;
+    do{x=Math.floor(Math.random()*W);y=Math.floor(Math.random()*H);tries++;}
+    while(this.body.some(s=>s.x===x&&s.y===y)&&tries<500);
+    this.food={x,y};
+  },
+  update(){
+    if(!this.running){if(btnJust.b)this.init();return;}
+    if(btnJust.a)this.dir=(this.dir+3)%4; // turn left
+    if(btnJust.c)this.dir=(this.dir+1)%4; // turn right
+    this.moveTick++;
+    if(this.moveTick<this.moveInterval)return;
+    this.moveTick=0;
+    const d=this.dirs[this.dir];
+    const nx=this.body[0].x+d[0], ny=this.body[0].y+d[1];
+    if(nx<0||nx>=W||ny<0||ny>=H||this.body.some(s=>s.x===nx&&s.y===ny)){this.running=false;return;}
+    this.body.unshift({x:nx,y:ny});
+    if(nx===this.food.x&&ny===this.food.y){
+      setScore(++score);
+      this.placeFood();
+      if(this.moveInterval>3)this.moveInterval--; // speed up
+    }else{this.body.pop();}
+  },
+  draw(){
+    cls();
+    if(this.food)px(this.food.x,this.food.y,255,40,40);
+    for(let i=0;i<this.body.length;i++){const s=this.body[i];px(s.x,s.y,0,Math.max(80,255-i*6),0);}
+    if(!this.running){drawText('GAME',8,4,255,60,60);drawText('OVER',8,10,255,60,60);}
+  }
+};
+
+// ================================================================
+// SPACE INVADERS - A:left C:right B:shoot
+// ================================================================
+const invaders={
+  playerX:0, bullets:[], enemies:[], eBullets:[],
+  eDir:1, eTick:0, eMoveInterval:20, eShootTick:0, eShootInterval:40,
+  moveTick:0, bulletTick:0, eBulletTick:0, running:false,
+  init(){
+    this.playerX=14;this.bullets=[];this.eBullets=[];
+    this.eDir=1;this.eTick=0;this.eMoveInterval=20;this.eShootTick=0;
+    this.moveTick=0;this.bulletTick=0;this.eBulletTick=0;this.running=true;
+    this.enemies=[];
+    for(let r=0;r<3;r++)for(let c=0;c<8;c++)this.enemies.push({x:c*3+4,y:r*2+1,alive:true});
+    setScore(0);
+  },
+  update(){
+    if(!this.running){if(btnJust.b)this.init();return;}
+    // player move (every 3 frames)
+    this.moveTick++;
+    if(this.moveTick>=3){this.moveTick=0;if(btn.a&&this.playerX>0)this.playerX--;if(btn.c&&this.playerX<W-3)this.playerX++;}
+    // shoot
+    if(btnJust.b&&this.bullets.length<2)this.bullets.push({x:this.playerX+1,y:H-3});
+    // player bullets (every 2 frames)
+    this.bulletTick++;
+    if(this.bulletTick>=2){this.bulletTick=0;this.bullets=this.bullets.filter(b=>{b.y--;return b.y>=0;});}
+    // enemy bullets (every 3 frames)
+    this.eBulletTick++;
+    if(this.eBulletTick>=3){this.eBulletTick=0;this.eBullets=this.eBullets.filter(b=>{b.y++;return b.y<H;});}
+    // hit detection
+    for(const b of this.bullets){for(const e of this.enemies){
+      if(!e.alive)continue;
+      if(Math.round(b.y)===e.y&&b.x>=e.x&&b.x<e.x+2){e.alive=false;b.y=-99;setScore(++score);}
+    }}
+    this.bullets=this.bullets.filter(b=>b.y>=0);
+    // enemy hits player
+    for(const b of this.eBullets){if(b.y>=H-1&&b.x>=this.playerX&&b.x<this.playerX+3){this.running=false;return;}}
+    // enemy move
+    this.eTick++;
+    if(this.eTick>=this.eMoveInterval){
+      this.eTick=0;
+      let edge=false;
+      for(const e of this.enemies){if(!e.alive)continue;e.x+=this.eDir;if(e.x<=0||e.x>=W-2)edge=true;}
+      if(edge){this.eDir=-this.eDir;for(const e of this.enemies){if(e.alive){e.y++;if(e.y>=H-3)this.running=false;}}}
+    }
+    // enemy shoot
+    this.eShootTick++;
+    if(this.eShootTick>=this.eShootInterval){
+      this.eShootTick=0;
+      const alive=this.enemies.filter(e=>e.alive);
+      if(alive.length>0){const e=alive[Math.floor(Math.random()*alive.length)];this.eBullets.push({x:e.x,y:e.y+1});}
+    }
+    if(this.enemies.every(e=>!e.alive)){this.eMoveInterval=Math.max(8,this.eMoveInterval-3);this.init();setScore(score);}
+  },
+  draw(){
+    cls();
+    for(const e of this.enemies){if(!e.alive)continue;px(e.x,e.y,0,255,100);px(e.x+1,e.y,0,255,100);}
+    for(let i=0;i<3;i++)px(this.playerX+i,H-1,200,200,255);
+    for(const b of this.bullets)px(b.x,Math.round(b.y),255,255,0);
+    for(const b of this.eBullets)px(b.x,Math.round(b.y),255,80,80);
+    if(!this.running){drawText('GAME',8,4,255,60,60);drawText('OVER',8,10,255,60,60);}
+  }
+};
+
+// ================================================================
+// FLAPPY - B:flap
+// ================================================================
+const flappy={
+  y:0, vy:0, pipes:[], pipeTick:0, running:false, started:false,
+  GRAVITY:0.12, JUMP:-1.5, PIPE_SPEED:0.25, PIPE_GAP:5, PIPE_INTERVAL:45,
+  init(){this.y=8;this.vy=0;this.pipes=[];this.pipeTick=0;this.running=true;this.started=false;setScore(0);},
+  update(){
+    if(!this.running){if(btnJust.b)this.init();return;}
+    if(btnJust.b){this.vy=this.JUMP;this.started=true;}
+    if(!this.started)return;
+    this.vy+=this.GRAVITY;
+    this.y+=this.vy;
+    if(this.y<0||this.y>=H-1){this.running=false;return;}
+    // pipes
+    this.pipeTick++;
+    if(this.pipeTick>=this.PIPE_INTERVAL){
+      this.pipeTick=0;
+      const gap=Math.floor(Math.random()*(H-this.PIPE_GAP-4))+2;
+      this.pipes.push({x:W+1,gap,scored:false});
+    }
+    for(const p of this.pipes)p.x-=this.PIPE_SPEED;
+    this.pipes=this.pipes.filter(p=>p.x>-3);
+    // collision
+    const bx=6, by=Math.round(this.y);
+    for(const p of this.pipes){
+      const px1=Math.floor(p.x), px2=px1+2;
+      if(bx>=px1&&bx<=px2){
+        if(by<=p.gap||by>=p.gap+this.PIPE_GAP){this.running=false;return;}
+      }
+      if(px2===bx-1&&!p.scored){p.scored=true;setScore(++score);}
+    }
+  },
+  draw(){
+    cls();
+    for(const p of this.pipes){
+      const px1=Math.floor(p.x);
+      for(let x=px1;x<=px1+2;x++){
+        for(let y=0;y<=p.gap;y++)px(x,y,0,140,0);
+        for(let y=p.gap+this.PIPE_GAP;y<H;y++)px(x,y,0,140,0);
+      }
+    }
+    const by=Math.round(this.y);
+    px(6,by,255,255,0);px(7,by,255,200,0);
+    if(!this.started){drawText('B',14,4,100,200,255);drawText('FLAP',10,10,100,200,255);}
+    if(!this.running){drawText('GAME',8,4,255,60,60);drawText('OVER',8,10,255,60,60);}
+  }
+};
+
+// ================================================================
+// PONG - A:up C:down (vs AI)
+// ================================================================
+const pong={
+  p1:0, p2:0, bx:0, by:0, bdx:0, bdy:0, running:false, s1:0, s2:0,
+  moveTick:0, aiTick:0, ballTick:0,
+  init(){
+    this.p1=6;this.p2=6;this.bx=16.0;this.by=8.0;
+    this.bdx=(Math.random()>0.5?1:-1);this.bdy=(Math.random()-0.5);
+    this.running=true;this.s1=0;this.s2=0;
+    this.moveTick=0;this.aiTick=0;this.ballTick=0;
+    setScore(0);
+  },
+  resetBall(dir){this.bx=16;this.by=8;this.bdx=dir;this.bdy=(Math.random()-0.5);},
+  update(){
+    if(!this.running){if(btnJust.b)this.init();return;}
+    // player paddle (every 2 frames)
+    this.moveTick++;
+    if(this.moveTick>=2){this.moveTick=0;if(btn.a&&this.p1>0)this.p1--;if(btn.c&&this.p1<H-4)this.p1++;}
+    // AI paddle (every 3 frames, imperfect tracking)
+    this.aiTick++;
+    if(this.aiTick>=3){this.aiTick=0;
+      const center=this.p2+2;
+      if(this.by<center-1&&this.p2>0)this.p2--;
+      else if(this.by>center+1&&this.p2<H-4)this.p2++;
+    }
+    // ball (every 2 frames)
+    this.ballTick++;
+    if(this.ballTick>=2){this.ballTick=0;
+      this.bx+=this.bdx*0.8; this.by+=this.bdy*0.6;
+      // top/bottom walls
+      if(this.by<=0){this.by=0;this.bdy=Math.abs(this.bdy);}
+      if(this.by>=H-1){this.by=H-1;this.bdy=-Math.abs(this.bdy);}
+      // left paddle
+      const ibx=Math.round(this.bx), iby=Math.round(this.by);
+      if(ibx<=2&&iby>=this.p1&&iby<this.p1+4){this.bdx=Math.abs(this.bdx);this.bdy=(iby-this.p1-1.5)*0.5;}
+      // right paddle (AI)
+      if(ibx>=W-3&&iby>=this.p2&&iby<this.p2+4){this.bdx=-Math.abs(this.bdx);this.bdy=(iby-this.p2-1.5)*0.5;}
+      // score
+      if(this.bx<0){this.s2++;setScore(this.s1);this.resetBall(1);}
+      if(this.bx>=W){this.s1++;setScore(this.s1);this.resetBall(-1);}
+      if(this.s1>=5||this.s2>=5)this.running=false;
+    }
+  },
+  draw(){
+    cls();
+    for(let y=0;y<H;y+=2)px(W/2,y,25,25,25);
+    for(let i=0;i<4;i++){px(1,this.p1+i,0,200,255);px(W-2,this.p2+i,255,100,100);}
+    px(Math.round(this.bx),Math.round(this.by),255,255,255);
+    drawText(''+this.s1,6,0,100,100,100);
+    drawText(''+this.s2,22,0,100,100,100);
+    if(!this.running){
+      const msg=this.s1>=5?'WIN':'LOSE';
+      drawText(msg,this.s1>=5?10:10,7,255,255,0);
+    }
+  }
+};
+
+// === Game registry ===
+const games={breakout, tetris, snake, invaders, flappy, pong};
+
+// === Main loop (30fps fixed timestep) ===
+const FRAME_MS=33;
+let lastTime=performance.now();
+let accumulator=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  accumulator+=Math.min(now-lastTime,100); // cap to prevent spiral
+  lastTime=now;
+  while(accumulator>=FRAME_MS){
+    accumulator-=FRAME_MS;
+    if(currentGame){currentGame.update();currentGame.draw();}
+    btnJust.a=false;btnJust.b=false;btnJust.c=false;
+  }
+}
+switchGame('breakout',document.querySelector('.game-btn'));
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

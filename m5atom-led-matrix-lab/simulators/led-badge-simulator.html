@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Badge Simulator (32x16)</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#111;
+  color:#eee;
+  font-family: 'Courier New', monospace;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+#header {
+  background:#1a1a1a;
+  border-bottom:2px solid #333;
+  padding:10px 20px;
+  display:flex;
+  align-items:center;
+  gap:16px;
+  flex-shrink:0;
+}
+#header h1 { font-size:16px; color:#0af; letter-spacing:4px; font-weight:bold; }
+.tag { background:#1a3a1a; color:#4f4; border:1px solid #4f4; padding:3px 10px; font-size:11px; border-radius:3px; }
+#main { display:flex; flex:1; overflow:hidden; }
+#canvas-wrap { flex:1; position:relative; background:#000; display:flex; align-items:center; justify-content:center; }
+#led-grid { display:grid; grid-template-columns:repeat(32, 1fr); gap:2px; padding:20px; }
+.led {
+  width:16px; height:16px; border-radius:3px;
+  background:#111; transition:background 0.05s;
+}
+#panel {
+  width:320px;
+  background:#1a1a1a;
+  border-left:2px solid #333;
+  overflow-y:auto;
+  flex-shrink:0;
+}
+.sec { padding:16px; border-bottom:1px solid #2a2a2a; }
+.sec-title { font-size:10px; color:#888; letter-spacing:3px; text-transform:uppercase; margin-bottom:12px; }
+.mode-btn {
+  display:block; width:100%; padding:10px 14px; margin-bottom:6px;
+  background:#222; border:1px solid #444; color:#bbb;
+  font-family:'Courier New',monospace; font-size:13px;
+  cursor:pointer; text-align:left; border-radius:4px; transition:all 0.15s;
+}
+.mode-btn:hover { border-color:#fa0; color:#fa0; }
+.mode-btn.active { background:#332200; border-color:#fa0; color:#fa0; }
+.text-row { display:flex; flex-direction:column; gap:8px; }
+input[type=text] {
+  background:#0a0a0a; border:2px solid #444; color:#0f8;
+  padding:10px 12px; font-family:'Courier New',monospace;
+  font-size:14px; border-radius:4px; width:100%; outline:none;
+}
+input[type=text]:focus { border-color:#0f8; }
+.apply-btn {
+  padding:10px; background:#003300; border:2px solid #0f8;
+  color:#0f8; font-family:'Courier New',monospace; font-size:13px;
+  font-weight:bold; cursor:pointer; border-radius:4px;
+  letter-spacing:2px; transition:all 0.15s;
+}
+.apply-btn:hover { background:#0f8; color:#000; }
+.color-row { display:flex; gap:8px; flex-wrap:wrap; }
+.color-btn {
+  width:36px; height:36px; border-radius:4px;
+  border:3px solid transparent; cursor:pointer; transition:border-color 0.1s;
+}
+.color-btn.active { border-color:#fff; }
+.slider-item { margin-bottom:12px; }
+.slider-label { display:flex; justify-content:space-between; font-size:12px; color:#aaa; margin-bottom:6px; }
+.slider-label .val { color:#0af; font-weight:bold; }
+input[type=range] { width:100%; accent-color:#0af; }
+.info { font-size:11px; color:#666; line-height:2; }
+.info span { color:#0af; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>LED BADGE SIM</h1>
+  <div class="tag">WS2812B 8x32 x2 (vertical)</div>
+  <div class="tag">32x16 = 512 LEDs</div>
+  <div class="tag">ATOM LITE</div>
+</div>
+<div id="main">
+  <div id="canvas-wrap">
+    <div id="led-grid"></div>
+  </div>
+  <div id="panel">
+    <div class="sec">
+      <div class="sec-title">DISPLAY MODE</div>
+      <button class="mode-btn active" onclick="setMode('name',this)">NAME</button>
+      <button class="mode-btn" onclick="setMode('company',this)">COMPANY</button>
+      <button class="mode-btn" onclick="setMode('scroll',this)">SCROLL TEXT</button>
+      <button class="mode-btn" onclick="setMode('eyes',this)">EYES</button>
+      <button class="mode-btn" onclick="setMode('face_happy',this)">FACE ^_^</button>
+      <button class="mode-btn" onclick="setMode('face_cool',this)">FACE B-)</button>
+      <button class="mode-btn" onclick="setMode('heart',this)">HEART</button>
+      <button class="mode-btn" onclick="setMode('icon_badge',this)">ICON BADGE</button>
+      <button class="mode-btn" onclick="setMode('equalizer',this)">EQUALIZER</button>
+      <button class="mode-btn" onclick="setMode('matrix',this)">MATRIX RAIN</button>
+      <button class="mode-btn" onclick="setMode('fire',this)">FIRE</button>
+      <button class="mode-btn" onclick="setMode('off',this)">OFF</button>
+    </div>
+    <div class="sec">
+      <div class="sec-title">TEXT</div>
+      <div class="text-row">
+        <input type="text" id="txt-name" value="HASEGAWA" placeholder="NAME (max 4 chars)">
+        <input type="text" id="txt-company" value="STUDIST" placeholder="COMPANY">
+        <input type="text" id="txt-scroll" value="HELLO WORLD !" placeholder="SCROLL TEXT">
+        <button class="apply-btn" onclick="applyText()">APPLY</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">LED COLOR</div>
+      <div class="color-row">
+        <div class="color-btn active" style="background:#00aaff" onclick="setColor([0,170,255],this)"></div>
+        <div class="color-btn" style="background:#00ff88" onclick="setColor([0,255,136],this)"></div>
+        <div class="color-btn" style="background:#ff4400" onclick="setColor([255,68,0],this)"></div>
+        <div class="color-btn" style="background:#ffcc00" onclick="setColor([255,204,0],this)"></div>
+        <div class="color-btn" style="background:#ff00cc" onclick="setColor([255,0,204],this)"></div>
+        <div class="color-btn" style="background:#ffffff" onclick="setColor([255,255,255],this)"></div>
+        <div class="color-btn" style="background:#aa44ff" onclick="setColor([170,68,255],this)"></div>
+        <div class="color-btn" style="background:#ff8800" onclick="setColor([255,136,0],this)"></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">SETTINGS</div>
+      <div class="slider-item">
+        <div class="slider-label"><span>BRIGHTNESS</span><span class="val" id="bv">100%</span></div>
+        <input type="range" min="5" max="100" value="100" oninput="brightness=this.value/100;document.getElementById('bv').textContent=this.value+'%'">
+      </div>
+      <div class="slider-item">
+        <div class="slider-label"><span>SCROLL SPEED</span><span class="val" id="sv">3</span></div>
+        <input type="range" min="1" max="10" value="3" oninput="scrollSpd=+this.value;document.getElementById('sv').textContent=this.value">
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">SPECS</div>
+      <div class="info">
+        PANELS : <span>WS2812B 8x32 x2 (vertical)</span><br>
+        PIXELS : <span>32 x 16 = 512 total</span><br>
+        SIZE   : <span>~32cm x 8cm</span><br>
+        CTRL   : <span>Atom Lite (ESP32)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLS = 32, ROWS = 16, TOTAL = COLS * ROWS;
+let mode = 'name', brightness = 1.0, scrollSpd = 3, scrollOff = 0;
+let ledColor = [0, 170, 255];
+let nameText = 'HASEGAWA', companyText = 'STUDIST', scrollText = 'HELLO WORLD !   ';
+let eyeX=0, eyeTX=0, eyeY=0, eyeTY=0, eyeT=0;
+let matrixDrops = [];
+let fireBuffer = [];
+
+// --- LED Grid ---
+const grid = document.getElementById('led-grid');
+const leds = [];
+for (let i = 0; i < TOTAL; i++) {
+  const d = document.createElement('div');
+  d.className = 'led';
+  grid.appendChild(d);
+  leds.push(d);
+}
+
+function setLed(x, y, r, g, b) {
+  if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return;
+  const idx = y * COLS + x;
+  r = Math.round(r * brightness);
+  g = Math.round(g * brightness);
+  b = Math.round(b * brightness);
+  leds[idx].style.background = (r+g+b > 0) ? `rgb(${r},${g},${b})` : '#111';
+}
+
+function clearAll() { leds.forEach(l => l.style.background = '#111'); }
+
+// --- Font 3x7 (slim) ---
+const FW = 3;
+const FONT = {
+' ':[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],
+'A':[[0,1,0],[1,0,1],[1,0,1],[1,1,1],[1,0,1],[1,0,1],[0,0,0]],
+'B':[[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,0,1],[1,1,0],[0,0,0]],
+'C':[[0,1,1],[1,0,0],[1,0,0],[1,0,0],[1,0,0],[0,1,1],[0,0,0]],
+'D':[[1,1,0],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,1,0],[0,0,0]],
+'E':[[1,1,1],[1,0,0],[1,1,0],[1,0,0],[1,0,0],[1,1,1],[0,0,0]],
+'F':[[1,1,1],[1,0,0],[1,1,0],[1,0,0],[1,0,0],[1,0,0],[0,0,0]],
+'G':[[0,1,1],[1,0,0],[1,0,0],[1,0,1],[1,0,1],[0,1,1],[0,0,0]],
+'H':[[1,0,1],[1,0,1],[1,1,1],[1,0,1],[1,0,1],[1,0,1],[0,0,0]],
+'I':[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[1,1,1],[0,0,0]],
+'J':[[0,1,1],[0,0,1],[0,0,1],[0,0,1],[1,0,1],[0,1,0],[0,0,0]],
+'K':[[1,0,1],[1,0,1],[1,1,0],[1,0,1],[1,0,1],[1,0,1],[0,0,0]],
+'L':[[1,0,0],[1,0,0],[1,0,0],[1,0,0],[1,0,0],[1,1,1],[0,0,0]],
+'M':[[1,0,1],[1,1,1],[1,1,1],[1,0,1],[1,0,1],[1,0,1],[0,0,0]],
+'N':[[1,0,1],[1,1,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,0,0]],
+'O':[[0,1,0],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,1,0],[0,0,0]],
+'P':[[1,1,0],[1,0,1],[1,1,0],[1,0,0],[1,0,0],[1,0,0],[0,0,0]],
+'Q':[[0,1,0],[1,0,1],[1,0,1],[1,0,1],[1,1,0],[0,1,1],[0,0,0]],
+'R':[[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,0,1],[1,0,1],[0,0,0]],
+'S':[[0,1,1],[1,0,0],[0,1,0],[0,0,1],[0,0,1],[1,1,0],[0,0,0]],
+'T':[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,0,0]],
+'U':[[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,1,0],[0,0,0]],
+'V':[[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,1,0],[0,0,0]],
+'W':[[1,0,1],[1,0,1],[1,0,1],[1,1,1],[1,1,1],[1,0,1],[0,0,0]],
+'X':[[1,0,1],[1,0,1],[0,1,0],[0,1,0],[1,0,1],[1,0,1],[0,0,0]],
+'Y':[[1,0,1],[1,0,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,0,0]],
+'Z':[[1,1,1],[0,0,1],[0,1,0],[0,1,0],[1,0,0],[1,1,1],[0,0,0]],
+'0':[[0,1,0],[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,1,0],[0,0,0]],
+'1':[[0,1,0],[1,1,0],[0,1,0],[0,1,0],[0,1,0],[1,1,1],[0,0,0]],
+'2':[[1,1,0],[0,0,1],[0,1,0],[0,1,0],[1,0,0],[1,1,1],[0,0,0]],
+'3':[[1,1,0],[0,0,1],[0,1,0],[0,0,1],[0,0,1],[1,1,0],[0,0,0]],
+'4':[[1,0,1],[1,0,1],[1,1,1],[0,0,1],[0,0,1],[0,0,1],[0,0,0]],
+'5':[[1,1,1],[1,0,0],[1,1,0],[0,0,1],[0,0,1],[1,1,0],[0,0,0]],
+'6':[[0,1,1],[1,0,0],[1,1,0],[1,0,1],[1,0,1],[0,1,0],[0,0,0]],
+'7':[[1,1,1],[0,0,1],[0,0,1],[0,1,0],[0,1,0],[0,1,0],[0,0,0]],
+'8':[[0,1,0],[1,0,1],[0,1,0],[1,0,1],[1,0,1],[0,1,0],[0,0,0]],
+'9':[[0,1,0],[1,0,1],[1,0,1],[0,1,1],[0,0,1],[1,1,0],[0,0,0]],
+'!':[[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,0,0],[0,1,0],[0,0,0]],
+'.':[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,1,0],[0,0,0]],
+'-':[[0,0,0],[0,0,0],[1,1,1],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],
+'^':[[0,1,0],[1,0,1],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],
+'_':[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[1,1,1]],
+'(':[[0,1,0],[1,0,0],[1,0,0],[1,0,0],[1,0,0],[0,1,0],[0,0,0]],
+')':[[0,1,0],[0,0,1],[0,0,1],[0,0,1],[0,0,1],[0,1,0],[0,0,0]],
+'>':[[1,0,0],[0,1,0],[0,0,1],[0,1,0],[1,0,0],[0,0,0],[0,0,0]],
+'<':[[0,0,1],[0,1,0],[1,0,0],[0,1,0],[0,0,1],[0,0,0],[0,0,0]],
+};
+
+function buildCols(text) {
+  const cols = [];
+  for (const ch of text) {
+    const bmp = FONT[ch.toUpperCase()] || FONT[' '];
+    for (let c = 0; c < FW; c++) cols.push(bmp.map(row => row[c]));
+    cols.push(new Array(7).fill(0));
+  }
+  return cols;
+}
+
+// --- Text rendering (static, centered, 2 lines possible) ---
+function renderStaticText(text, yOff) {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  const cols = buildCols(text);
+  const w = cols.length - 1;
+  const x0 = Math.floor((COLS - w) / 2);
+  for (let c = 0; c < cols.length && c < COLS; c++) {
+    for (let r = 0; r < 7; r++) {
+      const px = x0 + c, py = yOff + r;
+      if (px >= 0 && px < COLS && py >= 0 && py < ROWS) buf[py][px] = cols[c][r];
+    }
+  }
+  return buf;
+}
+
+// --- Scroll text ---
+function renderScrollText(text, off) {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  const cols = buildCols(text);
+  const W = cols.length;
+  const o = Math.floor(off) % W;
+  const yOff = Math.floor((ROWS - 7) / 2);
+  for (let c = 0; c < COLS; c++) {
+    const sc = ((c + o) % W + W) % W;
+    for (let r = 0; r < 7; r++) {
+      if (yOff + r < ROWS) buf[yOff + r][c] = cols[sc][r];
+    }
+  }
+  return buf;
+}
+
+// --- Eyes (16 rows = bigger!) ---
+function renderEyes(ex, ey) {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  const centers = [{cx:9, cy:8}, {cx:23, cy:8}];
+  for (const {cx, cy} of centers) {
+    const px = cx + Math.round(ex * 3);
+    const py = cy + Math.round(ey * 2);
+    for (let dr = -4; dr <= 4; dr++) for (let dc = -6; dc <= 6; dc++) {
+      if (dc*dc/36.0 + dr*dr/16.0 <= 1.0) {
+        const x=px+dc, y=py+dr;
+        if(x>=0&&x<COLS&&y>=0&&y<ROWS) buf[y][x]=0.15;
+      }
+    }
+    for (let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++) {
+      if(dc*dc+dr*dr<=5) {
+        const x=px+dc, y=py+dr;
+        if(x>=0&&x<COLS&&y>=0&&y<ROWS) buf[y][x]=1.0;
+      }
+    }
+  }
+  return buf;
+}
+
+// --- Face ^_^ ---
+function renderFaceHappy() {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  // eyes (^)
+  const eyeL = [[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1]];
+  const eyeR = eyeL;
+  for (let r=0;r<3;r++) for(let c=0;c<5;c++) {
+    if(eyeL[r][c]) buf[4+r][5+c]=1;
+    if(eyeR[r][c]) buf[4+r][22+c]=1;
+  }
+  // mouth (_)
+  for (let c=8;c<=23;c++) buf[12][c]=1;
+  buf[11][8]=1; buf[11][23]=1;
+  return buf;
+}
+
+// --- Face B-) ---
+function renderFaceCool() {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  // sunglasses bar
+  for(let c=3;c<=28;c++) buf[5][c]=1;
+  // left lens
+  for(let r=6;r<=8;r++) for(let c=4;c<=12;c++) buf[r][c]=1;
+  // right lens
+  for(let r=6;r<=8;r++) for(let c=19;c<=27;c++) buf[r][c]=1;
+  // bridge
+  for(let c=13;c<=18;c++) buf[6][c]=1;
+  // mouth
+  buf[12][10]=1; buf[13][11]=1; buf[13][12]=1;
+  for(let c=13;c<=18;c++) buf[13][c]=1;
+  buf[13][19]=1; buf[13][20]=1; buf[12][21]=1;
+  return buf;
+}
+
+// --- Heart ---
+const HEART = [
+  '..XX...XX..',
+  '.XXXX.XXXX.',
+  'XXXXXXXXXXX',
+  'XXXXXXXXXXX',
+  'XXXXXXXXXXX',
+  '.XXXXXXXXX.',
+  '..XXXXXXX..',
+  '...XXXXX...',
+  '....XXX....',
+  '.....X.....',
+];
+
+function renderHeart(t) {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  const scale = 0.85 + 0.15 * Math.sin(t * 4);
+  const h = HEART.length, w = HEART[0].length;
+  const cx = COLS/2, cy = ROWS/2;
+  for (let r=0;r<h;r++) for(let c=0;c<w;c++) {
+    if(HEART[r][c]==='X') {
+      const sx = Math.round(cx + (c - w/2) * scale);
+      const sy = Math.round(cy + (r - h/2) * scale);
+      if(sx>=0&&sx<COLS&&sy>=0&&sy<ROWS) buf[sy][sx]=1;
+    }
+  }
+  return buf;
+}
+
+// --- Icon Badge (name + icon) ---
+function renderIconBadge(t) {
+  const buf = renderStaticText(nameText.substring(0,4), 9);
+  // star icon at top
+  const star = [
+    '....X....',
+    '...XXX...',
+    '..XXXXX..',
+    'XXXXXXXXX',
+    '.XXXXXXX.',
+    '.XX...XX.',
+    'XX.....XX',
+  ];
+  const sw = star[0].length, sh = star.length;
+  const x0 = Math.floor((COLS - sw) / 2);
+  for (let r=0;r<sh;r++) for(let c=0;c<sw;c++) {
+    if(star[r][c]==='X' && x0+c>=0 && x0+c<COLS && r<ROWS) buf[r][x0+c]=1;
+  }
+  return buf;
+}
+
+// --- Equalizer ---
+function renderEqualizer(t) {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  for (let x = 0; x < COLS; x++) {
+    const h = Math.floor((Math.sin(t*3 + x*0.8) * 0.5 + 0.5) * ROWS *
+              (0.5 + 0.5 * Math.sin(t*1.7 + x*0.3)));
+    for (let y = ROWS - 1; y >= ROWS - h; y--) {
+      const intensity = (ROWS - y) / ROWS;
+      buf[y][x] = intensity;
+    }
+  }
+  return buf;
+}
+
+// --- Matrix Rain ---
+function renderMatrix(t, dt) {
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  if (matrixDrops.length === 0) {
+    for (let c = 0; c < COLS; c++) matrixDrops.push({y: -Math.random()*ROWS, speed: 4+Math.random()*8});
+  }
+  for (let c = 0; c < COLS; c++) {
+    matrixDrops[c].y += matrixDrops[c].speed * dt;
+    if (matrixDrops[c].y > ROWS + 6) {
+      matrixDrops[c].y = -Math.random() * 6;
+      matrixDrops[c].speed = 4 + Math.random() * 8;
+    }
+    const head = Math.floor(matrixDrops[c].y);
+    for (let i = 0; i < 6; i++) {
+      const y = head - i;
+      if (y >= 0 && y < ROWS) buf[y][c] = Math.max(0, 1.0 - i * 0.2);
+    }
+  }
+  return buf;
+}
+
+// --- Fire ---
+function renderFire(t, dt) {
+  if (fireBuffer.length === 0) {
+    fireBuffer = Array.from({length:ROWS+2}, ()=>new Array(COLS).fill(0));
+  }
+  // seed bottom rows
+  for (let x=0;x<COLS;x++) fireBuffer[ROWS+1][x] = Math.random() > 0.4 ? 1.0 : 0.3;
+  for (let x=0;x<COLS;x++) fireBuffer[ROWS][x] = Math.random() > 0.3 ? 0.9 : 0.2;
+  // propagate up
+  for (let y=0;y<ROWS;y++) {
+    for (let x=0;x<COLS;x++) {
+      const l = Math.max(0, x-1), r = Math.min(COLS-1, x+1);
+      fireBuffer[y][x] = (fireBuffer[y+1][l] + fireBuffer[y+1][x] + fireBuffer[y+1][r] + fireBuffer[y+2][x]) / 4.08;
+    }
+  }
+  const buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  for (let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) buf[y][x] = fireBuffer[y][x];
+  return buf;
+}
+
+// --- Controls ---
+function setMode(m, btn) {
+  mode = m; scrollOff = 0; matrixDrops = []; fireBuffer = [];
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function applyText() {
+  nameText = document.getElementById('txt-name').value || 'NAME';
+  companyText = document.getElementById('txt-company').value || 'COMPANY';
+  scrollText = document.getElementById('txt-scroll').value + '   ';
+  scrollOff = 0;
+}
+function setColor(c, el) {
+  ledColor = c;
+  document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// --- Main Loop ---
+let last = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  const t = now / 1000;
+
+  let buf;
+  if (mode === 'name') {
+    // 2-line: name top, company bottom
+    buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+    const top = renderStaticText(nameText, 1);
+    const bot = renderStaticText(companyText, 9);
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) buf[y][x] = Math.max(top[y][x], bot[y][x]);
+  } else if (mode === 'company') {
+    buf = renderStaticText(companyText, Math.floor((ROWS-7)/2));
+  } else if (mode === 'scroll') {
+    scrollOff += scrollSpd * 5 * dt;
+    buf = renderScrollText(scrollText, scrollOff);
+  } else if (mode === 'eyes') {
+    eyeT += dt;
+    if (eyeT > 1.5 + Math.random()) { eyeTX=(Math.random()-0.5)*1.6; eyeTY=(Math.random()-0.5)*1.2; eyeT=0; }
+    eyeX += (eyeTX-eyeX)*dt*7; eyeY += (eyeTY-eyeY)*dt*7;
+    buf = renderEyes(eyeX, eyeY);
+  } else if (mode === 'face_happy') {
+    buf = renderFaceHappy();
+  } else if (mode === 'face_cool') {
+    buf = renderFaceCool();
+  } else if (mode === 'heart') {
+    buf = renderHeart(t);
+  } else if (mode === 'icon_badge') {
+    buf = renderIconBadge(t);
+  } else if (mode === 'equalizer') {
+    buf = renderEqualizer(t);
+  } else if (mode === 'matrix') {
+    buf = renderMatrix(t, dt);
+  } else if (mode === 'fire') {
+    buf = renderFire(t, dt);
+  } else {
+    buf = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
+  }
+
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const v = buf[y][x];
+      if (mode === 'fire') {
+        const r = Math.min(255, v * 400);
+        const g = Math.max(0, v * 255 - 80);
+        const b = Math.max(0, v * 100 - 150);
+        setLed(x, y, r, g, b);
+      } else if (mode === 'matrix') {
+        setLed(x, y, 0, v * 255, 0);
+      } else if (mode === 'equalizer') {
+        const ratio = (ROWS - y) / ROWS;
+        setLed(x, y, v*ledColor[0]*ratio, v*ledColor[1]*(1-ratio*0.3), v*ledColor[2]*(1-ratio));
+      } else {
+        setLed(x, y, v*ledColor[0], v*ledColor[1], v*ledColor[2]);
+      }
+    }
+  }
+}
+animate(performance.now());
+</script>
+</body>
+</html>
