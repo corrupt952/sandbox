@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Hat Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#111;
+  color:#eee;
+  font-family: 'Courier New', monospace;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+#header {
+  background:#1a1a1a;
+  border-bottom:2px solid #333;
+  padding:10px 20px;
+  display:flex;
+  align-items:center;
+  gap:16px;
+  flex-shrink:0;
+}
+#header h1 { font-size:16px; color:#0af; letter-spacing:4px; font-weight:bold; }
+.tag { background:#1a3a1a; color:#4f4; border:1px solid #4f4; padding:3px 10px; font-size:11px; border-radius:3px; }
+#main { display:flex; flex:1; overflow:hidden; }
+#canvas-wrap { flex:1; position:relative; background:#000; }
+#canvas-wrap canvas { display:block; }
+#panel {
+  width:300px;
+  background:#1a1a1a;
+  border-left:2px solid #333;
+  overflow-y:auto;
+  flex-shrink:0;
+}
+.sec { padding:16px; border-bottom:1px solid #2a2a2a; }
+.sec-title { font-size:10px; color:#888; letter-spacing:3px; text-transform:uppercase; margin-bottom:12px; }
+.shape-row { display:flex; gap:8px; }
+.shape-btn {
+  flex:1; padding:10px 0;
+  background:#222; border:2px solid #444;
+  color:#aaa; font-family:'Courier New',monospace;
+  font-size:13px; font-weight:bold; cursor:pointer;
+  border-radius:4px; transition:all 0.15s;
+}
+.shape-btn:hover { border-color:#0af; color:#0af; }
+.shape-btn.active { background:#003344; border-color:#0af; color:#0af; }
+.mode-btn {
+  display:block; width:100%; padding:10px 14px; margin-bottom:6px;
+  background:#222; border:1px solid #444; color:#bbb;
+  font-family:'Courier New',monospace; font-size:13px;
+  cursor:pointer; text-align:left; border-radius:4px; transition:all 0.15s;
+}
+.mode-btn:hover { border-color:#fa0; color:#fa0; }
+.mode-btn.active { background:#332200; border-color:#fa0; color:#fa0; }
+.text-row { display:flex; flex-direction:column; gap:8px; }
+input[type=text] {
+  background:#0a0a0a; border:2px solid #444; color:#0f8;
+  padding:10px 12px; font-family:'Courier New',monospace;
+  font-size:14px; border-radius:4px; width:100%; outline:none;
+}
+input[type=text]:focus { border-color:#0f8; }
+.apply-btn {
+  padding:10px; background:#003300; border:2px solid #0f8;
+  color:#0f8; font-family:'Courier New',monospace; font-size:13px;
+  font-weight:bold; cursor:pointer; border-radius:4px;
+  letter-spacing:2px; transition:all 0.15s;
+}
+.apply-btn:hover { background:#0f8; color:#000; }
+.color-row { display:flex; gap:8px; flex-wrap:wrap; }
+.color-btn {
+  width:36px; height:36px; border-radius:4px;
+  border:3px solid transparent; cursor:pointer; transition:border-color 0.1s;
+}
+.color-btn.active { border-color:#fff; }
+.slider-item { margin-bottom:12px; }
+.slider-label { display:flex; justify-content:space-between; font-size:12px; color:#aaa; margin-bottom:6px; }
+.slider-label .val { color:#0af; font-weight:bold; }
+input[type=range] { width:100%; accent-color:#0af; }
+.info { font-size:11px; color:#666; line-height:2; }
+.info span { color:#0af; }
+#hint { position:absolute; bottom:12px; left:12px; font-size:11px; color:#333; pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>LED HAT SIM</h1>
+  <div class="tag">WS2812B 8×32 ×2</div>
+  <div class="tag">512 LEDs</div>
+  <div class="tag">ATOM LITE / BLE</div>
+</div>
+<div id="main">
+  <div id="canvas-wrap">
+    <div id="hint">Drag to rotate</div>
+  </div>
+  <div id="panel">
+    <div class="sec">
+      <div class="sec-title">SHAPE</div>
+      <div class="shape-row">
+        <button class="shape-btn active" id="sb-cyl" onclick="setShape('cylinder')">⬤ CYLINDER</button>
+        <button class="shape-btn" id="sb-flat" onclick="setShape('flat')">▬ FLAT</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">DISPLAY MODE</div>
+      <button class="mode-btn active" onclick="setMode('scroll',this)">▶ SCROLL TEXT</button>
+      <button class="mode-btn" onclick="setMode('eyes',this)">👀 EYES DARTING</button>
+      <button class="mode-btn" onclick="setMode('rainbow',this)">🌈 RAINBOW WAVE</button>
+      <button class="mode-btn" onclick="setMode('off',this)">○ ALL OFF</button>
+    </div>
+    <div class="sec">
+      <div class="sec-title">TEXT</div>
+      <div class="text-row">
+        <input type="text" id="txt" value="MENTOR HERE !!!">
+        <button class="apply-btn" onclick="applyText()">▶ APPLY</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">LED COLOR</div>
+      <div class="color-row">
+        <div class="color-btn active" style="background:#00aaff" onclick="setColor(0.58,1,1,this)"></div>
+        <div class="color-btn" style="background:#00ff88" onclick="setColor(0.42,1,1,this)"></div>
+        <div class="color-btn" style="background:#ff4400" onclick="setColor(0.05,1,1,this)"></div>
+        <div class="color-btn" style="background:#ffcc00" onclick="setColor(0.14,1,1,this)"></div>
+        <div class="color-btn" style="background:#ff00cc" onclick="setColor(0.87,1,1,this)"></div>
+        <div class="color-btn" style="background:#ffffff" onclick="setColor(-1,0,1,this)"></div>
+        <div class="color-btn" style="background:#aa44ff" onclick="setColor(0.77,1,1,this)"></div>
+        <div class="color-btn" style="background:#ff8800" onclick="setColor(0.09,1,1,this)"></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">SETTINGS</div>
+      <div class="slider-item">
+        <div class="slider-label"><span>BRIGHTNESS</span><span class="val" id="bv">100%</span></div>
+        <input type="range" min="5" max="100" value="100" oninput="brightness=this.value/100;document.getElementById('bv').textContent=this.value+'%'">
+      </div>
+      <div class="slider-item">
+        <div class="slider-label"><span>SCROLL SPEED</span><span class="val" id="sv">3</span></div>
+        <input type="range" min="1" max="10" value="3" oninput="scrollSpd=+this.value;document.getElementById('sv').textContent=this.value">
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">SPECS</div>
+      <div class="info">
+        PANELS : <span>WS2812B 8×32 ×2 panels</span><br>
+        PIXELS : <span>512 total</span><br>
+        SIZE   : <span>64cm × 8cm</span><br>
+        POWER  : <span>5V / ~1.5A @20%</span><br>
+        CTRL   : <span>Atom Lite (ESP32)</span><br>
+        COMM   : <span>BLE UART</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Three.js ────────────────────────────────────────────────────
+const wrap = document.getElementById('canvas-wrap');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x888899);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+camera.position.set(0, 1.2, 5);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+wrap.appendChild(renderer.domElement);
+
+function onResize() {
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+onResize();
+window.addEventListener('resize', onResize);
+
+// ─── Config ──────────────────────────────────────────────────────
+const COLS = 64;
+const ROWS = 8;
+const TOTAL = COLS * ROWS;
+const R = 1.02;       // cylinder radius
+const LED_SIZE = 0.09;
+const ROW_SPACING = 0.12;
+
+// ─── Pivot group (everything rotates together) ───────────────────
+const pivot = new THREE.Group();
+scene.add(pivot);
+
+// ─── Hat shell ───────────────────────────────────────────────────
+const hatH = ROWS * ROW_SPACING + 0.1;
+
+// Inner: LED backing (not visible from outside, but functions as the LED background)
+const innerGeo = new THREE.CylinderGeometry(R*0.97, R*0.97, hatH, 64, 1, true);
+const innerMat = new THREE.MeshBasicMaterial({ color:0x050505, side:THREE.BackSide });
+pivot.add(new THREE.Mesh(innerGeo, innerMat));
+
+// Outer: hat body (the visible fabric part), the portion that extends above/below
+const outerTopGeo = new THREE.CylinderGeometry(R*0.97, R*0.97, 0.18, 64, 1, true);
+const outerTopMat = new THREE.MeshBasicMaterial({ color:0x1a1a2a, side:THREE.FrontSide });
+const outerTop = new THREE.Mesh(outerTopGeo, outerTopMat);
+outerTop.position.y = hatH/2 + 0.09;
+pivot.add(outerTop);
+
+// Brim
+const brimGeo = new THREE.RingGeometry(R, R*1.6, 64);
+const brimMesh = new THREE.Mesh(brimGeo, new THREE.MeshBasicMaterial({ color:0x1a1a2a, side:THREE.DoubleSide }));
+brimMesh.rotation.x = -Math.PI/2;
+brimMesh.position.y = -hatH/2 - 0.02;
+pivot.add(brimMesh);
+
+// Front marker: colors the front part of the brim red so the front is easy to identify
+// angle=0 is the front (+Z direction)
+const frontMarkerGeo = new THREE.RingGeometry(R*1.0, R*1.08, 8, 1, -0.25, 0.5);
+const frontMarkerMesh = new THREE.Mesh(frontMarkerGeo,
+  new THREE.MeshBasicMaterial({ color:0xff2200, side:THREE.DoubleSide }));
+frontMarkerMesh.rotation.x = -Math.PI/2;
+frontMarkerMesh.position.y = -hatH/2 - 0.02;
+pivot.add(frontMarkerMesh);
+
+// Top cap
+const topMesh = new THREE.Mesh(
+  new THREE.CircleGeometry(R*0.97, 64),
+  new THREE.MeshBasicMaterial({ color:0x1a1a2a, side:THREE.DoubleSide })
+);
+topMesh.rotation.x = -Math.PI/2;
+topMesh.position.y = hatH/2 + 0.18 + 0.01;
+pivot.add(topMesh);
+
+const hatParts = [outerTop, brimMesh, frontMarkerMesh, topMesh];
+
+// ─── LED InstancedMesh ───────────────────────────────────────────
+const ledGeo = new THREE.PlaneGeometry(LED_SIZE, LED_SIZE);
+
+// Per-instance color via shader
+const ledMat = new THREE.ShaderMaterial({
+  vertexShader: `
+    attribute vec3 iColor;
+    varying vec3 vCol;
+    void main(){
+      vCol = iColor;
+      gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position,1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vCol;
+    void main(){
+      // Soft glow: distance from center
+      vec2 uv = gl_PointCoord;
+      gl_FragColor = vec4(vCol, 1.0);
+    }
+  `,
+  side: THREE.FrontSide
+});
+
+const iMesh = new THREE.InstancedMesh(ledGeo, ledMat, TOTAL);
+iMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+// Add per-instance color attribute
+const iColorArr = new Float32Array(TOTAL * 3);
+ledGeo.setAttribute('iColor', new THREE.InstancedBufferAttribute(iColorArr, 3));
+
+pivot.add(iMesh);
+
+// ─── Position LEDs ────────────────────────────────────────────────
+const dummy = new THREE.Object3D();
+
+function positionCylinder() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const idx = r * COLS + c;
+      const angle = (c / COLS) * Math.PI * 2;
+      dummy.position.set(
+        R * Math.cos(angle),
+        (ROWS - 1) / 2 * ROW_SPACING - r * ROW_SPACING,
+        R * Math.sin(angle)
+      );
+      dummy.rotation.set(0, Math.PI / 2 - angle, 0);
+      dummy.updateMatrix();
+      iMesh.setMatrixAt(idx, dummy.matrix);
+    }
+  }
+  iMesh.instanceMatrix.needsUpdate = true;
+}
+
+function positionFlat() {
+  const totalW = (COLS - 1) * (LED_SIZE + 0.025);
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const idx = r * COLS + c;
+      dummy.position.set(
+        (c / (COLS - 1) - 0.5) * totalW,
+        (ROWS - 1) / 2 * ROW_SPACING - r * ROW_SPACING,
+        0
+      );
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      iMesh.setMatrixAt(idx, dummy.matrix);
+    }
+  }
+  iMesh.instanceMatrix.needsUpdate = true;
+}
+
+// ─── State ────────────────────────────────────────────────────────
+let shape = 'cylinder';
+let mode = 'scroll';
+let brightness = 1.0;
+let scrollSpd = 3;
+let scrollOff = 0;
+let ledH = 0.58, ledS = 1; // HSV hue/sat; val always 1 then multiply brightness
+let isWhite = false;
+let displayText = 'MENTOR HERE !!!   ';
+let eyeX=0, eyeTX=0, eyeY=0, eyeTY=0, eyeT=0, blinkT=0;
+
+// ─── Controls ────────────────────────────────────────────────────
+function setShape(s) {
+  shape = s;
+  document.getElementById('sb-cyl').classList.toggle('active', s==='cylinder');
+  document.getElementById('sb-flat').classList.toggle('active', s==='flat');
+  hatParts.forEach(p => p.visible = (s==='cylinder'));
+  // Also hide the innerGeo mesh
+  pivot.children.forEach(c => {
+    if (c.geometry && (c.geometry.type==='CylinderGeometry')) c.visible=(s==='cylinder');
+  });
+  if (s==='cylinder') { positionCylinder(); camera.position.set(0,1.2,5); }
+  else { positionFlat(); camera.position.set(0,0,8); }
+  camera.lookAt(0,0,0);
+  pivot.rotation.set(0,0,0);
+  rotX=0; rotY=0;
+}
+
+function setMode(m, btn) {
+  mode = m; scrollOff = 0;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function applyText() {
+  displayText = document.getElementById('txt').value + '   ';
+  scrollOff = 0;
+}
+
+function setColor(h, s, v, el) {
+  ledH=h; ledS=s; isWhite=(h<0);
+  document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ─── Drag rotate ─────────────────────────────────────────────────
+let isDrag=false, prev={x:0,y:0}, rotY=0, rotX=0.15;
+wrap.addEventListener('mousedown', e=>{ isDrag=true; prev={x:e.clientX,y:e.clientY}; });
+window.addEventListener('mouseup', ()=>isDrag=false);
+window.addEventListener('mousemove', e=>{
+  if(!isDrag) return;
+  rotY += (e.clientX-prev.x)*0.012;
+  rotX += (e.clientY-prev.y)*0.006;
+  rotX = Math.max(-0.6, Math.min(0.7, rotX));
+  prev={x:e.clientX,y:e.clientY};
+});
+
+// ─── Font 5×7 ────────────────────────────────────────────────────
+const FONT = {
+' ':[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
+'A':[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,0,0,0,0]],
+'B':[[1,1,1,0,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,0,0],[0,0,0,0,0]],
+'C':[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],
+'D':[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,0,0],[0,0,0,0,0]],
+'E':[[1,1,1,1,0],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,0]],
+'F':[[1,1,1,1,0],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[0,0,0,0,0]],
+'G':[[0,1,1,0,0],[1,0,0,0,0],[1,0,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],
+'H':[[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,0,0,0,0]],
+'I':[[1,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,1,1,0,0],[0,0,0,0,0]],
+'J':[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],
+'K':[[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[0,0,0,0,0]],
+'L':[[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,0]],
+'M':[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,0,0,0,0]],
+'N':[[1,0,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,0,1],[1,0,0,0,1],[0,0,0,0,0]],
+'O':[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],
+'P':[[1,1,1,0,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[0,0,0,0,0]],
+'Q':[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,1,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],
+'R':[[1,1,1,0,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[0,0,0,0,0]],
+'S':[[0,1,1,1,0],[1,0,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[1,1,1,0,0],[0,0,0,0,0]],
+'T':[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],
+'U':[[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],
+'V':[[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],
+'W':[[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,1,0,1,1],[1,0,0,0,1],[0,0,0,0,0]],
+'X':[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,0,0,0,0]],
+'Y':[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],
+'Z':[[1,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,0]],
+'0':[[0,1,1,0,0],[1,0,0,1,0],[1,0,1,1,0],[1,1,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],
+'1':[[0,1,0,0,0],[1,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,1,1,0,0],[0,0,0,0,0]],
+'2':[[0,1,1,0,0],[1,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,1,1,1,0],[0,0,0,0,0]],
+'3':[[1,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[1,1,1,0,0],[0,0,0,0,0]],
+'!':[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],
+'?':[[0,1,1,0,0],[1,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],
+'.':[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],
+};
+
+function buildCols(text) {
+  const cols = [];
+  for (const ch of text) {
+    const bmp = FONT[ch.toUpperCase()] || FONT[' '];
+    for (let c = 0; c < 5; c++) {
+      cols.push(bmp.map(row => row[c]));
+    }
+    cols.push([0,0,0,0,0,0,0]); // 1px gap
+  }
+  return cols;
+}
+
+function renderScroll(text, off) {
+  const buf = new Float32Array(TOTAL);
+  const cols = buildCols(text);
+  const W = cols.length;
+  const o = Math.floor(off) % W;
+  for (let c = 0; c < COLS; c++) {
+    const sc = (c + o + W) % W;
+    const col = cols[sc];
+    for (let r = 0; r < ROWS; r++) {
+      // vertically center: font is 7 tall, display is 8 → offset by 0 (rows 0-6 used)
+      buf[r * COLS + c] = (r < 7 && col[r]) ? 1.0 : 0.0;
+    }
+  }
+  return buf;
+}
+
+function renderEyes(ex, ey) {
+  const buf = new Float32Array(TOTAL);
+  // Cylinder mode: based on the front panel. angle=0 is the front = col 0.
+  // Place the eyes left/right of the front → col 57(-7) and col 7(+7) *wraparound
+  // Flat mode: based on full width → col 16 and col 48
+  const centers = shape === 'cylinder'
+    ? [{cx: (COLS - 8 + COLS) % COLS, cy: 3}, {cx: 8, cy: 3}]  // front left/right
+    : [{cx: 16, cy: 3}, {cx: 48, cy: 3}];                        // full-width left/right
+
+  for (const {cx, cy} of centers) {
+    let px = cx + Math.round(ex * 5);
+    const py = cy + Math.round(ey * 1.2);
+    // Cylinder mode wraps around, flat mode clamps
+    if (shape === 'cylinder') {
+      px = ((px % COLS) + COLS) % COLS;
+    }
+    // eye white
+    for (let dr = -2; dr <= 2; dr++) {
+      for (let dc = -5; dc <= 5; dc++) {
+        if (dc*dc/25.0 + dr*dr/4.0 <= 1.0) {
+          let c = px+dc, r = py+dr;
+          if (shape === 'cylinder') c = ((c % COLS) + COLS) % COLS;
+          if(c>=0&&c<COLS&&r>=0&&r<ROWS) buf[r*COLS+c]=Math.max(buf[r*COLS+c],0.12);
+        }
+      }
+    }
+    // pupil
+    for (let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++) {
+      let c=px+dc, r=py+dr;
+      if (shape === 'cylinder') c = ((c % COLS) + COLS) % COLS;
+      if(c>=0&&c<COLS&&r>=0&&r<ROWS) buf[r*COLS+c]=1.0;
+    }
+  }
+  return buf;
+}
+
+// ─── HSV → RGB ───────────────────────────────────────────────────
+function hsv(h,s,v) {
+  const i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);
+  return [[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i%6];
+}
+
+// ─── Set LED color ────────────────────────────────────────────────
+function setLED(idx, intensity, rt) {
+  let r,g,b;
+  if (mode==='rainbow') {
+    const h=((idx/TOTAL)+rt)%1;
+    [r,g,b]=hsv(h,1,intensity*brightness);
+  } else if (isWhite) {
+    r=g=b=intensity*brightness;
+  } else {
+    [r,g,b]=hsv(ledH,ledS,intensity*brightness);
+  }
+  if (intensity<0.01) { r=0; g=0; b=0; }
+  iColorArr[idx*3]=r; iColorArr[idx*3+1]=g; iColorArr[idx*3+2]=b;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────
+positionCylinder();
+
+// ─── Loop ─────────────────────────────────────────────────────────
+let last = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now-last)/1000, 0.05);
+  last = now;
+
+  pivot.rotation.y = rotY;
+  pivot.rotation.x = rotX;
+
+  const rt = (now*0.0003)%1;
+  let buf;
+
+  if (mode==='scroll') {
+    scrollOff += scrollSpd * 5 * dt;
+    buf = renderScroll(displayText, scrollOff);
+  } else if (mode==='eyes') {
+    eyeT+=dt; blinkT+=dt;
+    if (eyeT > 1.5+Math.random()*1.0) {
+      eyeTX=(Math.random()-0.5)*1.8;
+      eyeTY=(Math.random()-0.5)*0.9;
+      eyeT=0;
+    }
+    eyeX+=(eyeTX-eyeX)*dt*7;
+    eyeY+=(eyeTY-eyeY)*dt*7;
+    if(blinkT>4.2) blinkT=0;
+    buf = renderEyes(eyeX, eyeY);
+  } else if (mode==='rainbow') {
+    buf = new Float32Array(TOTAL).fill(1);
+  } else {
+    buf = new Float32Array(TOTAL).fill(0);
+  }
+
+  for(let i=0;i<TOTAL;i++) setLED(i, buf[i], rt);
+  ledGeo.attributes.iColor.needsUpdate = true;
+
+  renderer.render(scene, camera);
+}
+animate(performance.now());
+</script>
+</body>
+</html>
