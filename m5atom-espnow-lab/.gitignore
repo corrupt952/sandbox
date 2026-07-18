@@ -1,0 +1,21 @@
+# PlatformIO
+.pio/
+
+# Python (uv)
+.venv/
+__pycache__/
+*.pyc
+
+# Nix / direnv
+.direnv/
+
+# macOS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Editor
+.vscode/
+*.swp
+*.swo
