@@ -1,0 +1,6 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "__DIR__/statusline-probe.sh"
+  }
+}

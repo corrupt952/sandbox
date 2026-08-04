@@ -1,0 +1,31 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "__DIR__/statusline.sh"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__DIR__/usage-gate.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__DIR__/usage-gate.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

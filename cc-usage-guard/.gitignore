@@ -1,0 +1,7 @@
+.test-tmp/
+.demo-state.json
+.demo-conf/
+
+# Generated from the .template.json files; hold absolute paths.
+guard-settings.json
+probe-settings.json
