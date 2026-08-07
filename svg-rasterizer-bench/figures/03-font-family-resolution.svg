@@ -1,0 +1,40 @@
+<!--
+  Probe 3: how each renderer resolves font-family.
+  Ten declarations, each rendering the same Japanese + ASCII string.
+  Labels use an explicit Hiragino Sans so that the labels themselves stay
+  readable no matter what the tested declaration resolves to.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 320" width="620" height="320">
+  <rect width="620" height="320" fill="#fff"/>
+  <text x="16" y="26" font-size="13" font-family="Hiragino Sans" fill="#c00">font-family の解決比較（各行 日本語 + ABC 123）</text>
+
+  <text x="16" y="60" font-size="11" font-family="Hiragino Sans" fill="#888">① 指定なし（レンダラー既定）</text>
+  <text x="16" y="80" font-size="17">図版フォント確認 ABC 123</text>
+
+  <text x="16" y="112" font-size="11" font-family="Hiragino Sans" fill="#888">② スタック全体</text>
+  <text x="16" y="132" font-size="17" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif">図版フォント確認 ABC 123</text>
+
+  <text x="16" y="164" font-size="11" font-family="Hiragino Sans" fill="#888">③ -apple-system 単独</text>
+  <text x="16" y="184" font-size="17" font-family="-apple-system">図版フォント確認 ABC 123</text>
+
+  <text x="16" y="216" font-size="11" font-family="Hiragino Sans" fill="#888">④ system-ui 単独</text>
+  <text x="16" y="236" font-size="17" font-family="system-ui">図版フォント確認 ABC 123</text>
+
+  <text x="16" y="268" font-size="11" font-family="Hiragino Sans" fill="#888">⑤ sans-serif 単独</text>
+  <text x="16" y="288" font-size="17" font-family="sans-serif">図版フォント確認 ABC 123</text>
+
+  <text x="330" y="60" font-size="11" font-family="Hiragino Sans" fill="#888">⑥ 'Hiragino Sans' 単独</text>
+  <text x="330" y="80" font-size="17" font-family="Hiragino Sans">図版フォント確認 ABC 123</text>
+
+  <text x="330" y="112" font-size="11" font-family="Hiragino Sans" fill="#888">⑦ 'Noto Sans JP' 単独</text>
+  <text x="330" y="132" font-size="17" font-family="Noto Sans JP">図版フォント確認 ABC 123</text>
+
+  <text x="330" y="164" font-size="11" font-family="Hiragino Sans" fill="#888">⑧ Meiryo 単独</text>
+  <text x="330" y="184" font-size="17" font-family="Meiryo">図版フォント確認 ABC 123</text>
+
+  <text x="330" y="216" font-size="11" font-family="Hiragino Sans" fill="#888">⑨ serif 単独</text>
+  <text x="330" y="236" font-size="17" font-family="serif">図版フォント確認 ABC 123</text>
+
+  <text x="330" y="268" font-size="11" font-family="Hiragino Sans" fill="#888">⑩ 存在しない名前</text>
+  <text x="330" y="288" font-size="17" font-family="NoSuchFontXYZ">図版フォント確認 ABC 123</text>
+</svg>

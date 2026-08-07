@@ -1,0 +1,37 @@
+<!--
+  Probe 2: text weight/style and <pattern> handling.
+  - font-weight 400 / 700 / bold  (sips ignores weight entirely)
+  - font-style italic             (resvg and sips both ignore it)
+  - <pattern> with and without patternTransform, and a rect-only pattern
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 260" width="560" height="260"
+     font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <defs>
+    <pattern id="hatch-rot" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#c2410c" stroke-width="1"/>
+    </pattern>
+    <pattern id="hatch-norot" width="6" height="6" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#c2410c" stroke-width="1"/>
+    </pattern>
+    <pattern id="checker" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="#e2e8f0"/>
+      <rect width="10" height="10" fill="#f8fafc"/>
+    </pattern>
+  </defs>
+
+  <rect width="560" height="260" fill="#fff"/>
+
+  <text x="20" y="30" font-size="14">font-weight の比較</text>
+  <text x="20" y="60" font-size="20" font-weight="400">400 ウエイト Weight</text>
+  <text x="20" y="90" font-size="20" font-weight="700">700 ウエイト Weight</text>
+  <text x="290" y="60" font-size="20" font-weight="bold">bold ウエイト Weight</text>
+  <text x="290" y="90" font-size="20" font-style="italic">italic ウエイト Weight</text>
+
+  <text x="20" y="135" font-size="14">pattern の比較</text>
+  <rect x="20"  y="150" width="150" height="70" fill="url(#hatch-rot)"   stroke="#c2410c"/>
+  <rect x="200" y="150" width="150" height="70" fill="url(#hatch-norot)" stroke="#c2410c"/>
+  <rect x="380" y="150" width="150" height="70" fill="url(#checker)"     stroke="#94a3b8"/>
+  <text x="20"  y="240" font-size="12">patternTransform あり</text>
+  <text x="200" y="240" font-size="12">patternTransform なし</text>
+  <text x="380" y="240" font-size="12">rect のみ(市松)</text>
+</svg>
