@@ -17,11 +17,21 @@ mkdir -p "$(dirname "$STATE")"
 
 # `now` is stamped here rather than read from the payload so the gate can tell
 # how stale the reading is.
-if printf '%s' "$input" | jq -c '{
-  five_hour: .rate_limits.five_hour,
-  seven_day: .rate_limits.seven_day,
-  observed_at: (now | floor)
-}' >"$STATE.tmp" 2>/dev/null; then
+#
+# The `select` is what keeps a reading from being erased. The first render of a
+# session happens before its first API response, so `rate_limits` is absent from
+# that payload; recording it would null out a good reading left by a previous
+# session and stand the gate down for the opening prompt. `jq` succeeds on a
+# missing field, so the junk check below never caught this. Writing nothing instead
+# lets an old reading age out through the gate's `max_age`, which is the case the
+# gate already reasons about.
+if printf '%s' "$input" | jq -c '
+  select(.rate_limits.five_hour != null or .rate_limits.seven_day != null)
+  | { five_hour: .rate_limits.five_hour
+    , seven_day: .rate_limits.seven_day
+    , observed_at: (now | floor)
+    }
+' >"$STATE.tmp" 2>/dev/null && [ -s "$STATE.tmp" ]; then
   mv "$STATE.tmp" "$STATE"
 elif [ -e "$STATE.tmp" ]; then
   # Leave the previous good state in place rather than replacing it with junk.

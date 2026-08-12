@@ -132,7 +132,10 @@ The config file is re-read on every check, so thresholds change without a restar
 Once the gate is blocking there is no way to ask Claude to lift it, so all three
 work from outside the session:
 
-- Include `[guard-bypass]` anywhere in the prompt — lets that one turn through
+- Include `[guard-bypass]` anywhere in the prompt — lets the turn *start*, and
+  nothing more. Only `UserPromptSubmit` carries a prompt, so `PreToolUse` never
+  sees the marker and goes on denying every tool call in that turn. For work that
+  needs tools, this hatch is not enough; reach for one of the two below
 - `touch ~/.config/cc-usage-guard/disabled` — off until the file is removed
 - `CC_GUARD_OFF=1` — off for the process
 
@@ -150,7 +153,42 @@ down whenever it cannot be sure:
 | At or above the threshold | **block** |
 
 The headless case is the real hole: with no status line there is no fresh reading,
-so `claude -p` runs unguarded.
+so `claude -p` runs unguarded. Measured rather than assumed — under `claude -p`
+the probe writes no dump at all, so the status line command is not merely
+unrendered but never invoked.
+
+A second hole sat on the sensor side until it was found by running this. The first
+render of a session happens before its first API response, so `rate_limits` is
+absent there, and the sensor used to record `null` for both windows — erasing the
+reading left by the previous session and standing the gate down for the opening
+prompt. `jq` succeeds on a missing field, so the sensor's own junk check never saw
+it; that check only covers a `jq` failure. The sensor now writes nothing unless a
+render actually carries a reading, which turns the situation back into ordinary
+staleness: the old reading stands and ages out through `max_age`.
+
+Even before that, the gap was narrower than it sounds. The sensor runs on the first
+API response, which lands before the turn's first tool call, so `PreToolUse` had a
+real reading to act on regardless. Observed live: the opening prompt of a session
+was accepted and its first `Bash` call denied.
+
+## Concurrent sessions
+
+Not handled at all. The state file is a single global path shared by every session
+on the machine, and nothing coordinates access to it.
+
+The readings themselves do not conflict. `rate_limits` describes the account's
+window, so every session sees the same numbers and it does not matter which one
+records them. The staging does: `statusline.sh` writes through a fixed
+`$STATE.tmp`, so two sensors rendering at the same moment share that file, and
+whichever `mv`s first can publish a half-written mix of both. The gate then fails
+to parse the result and stands down silently — the safe direction, but a gap all
+the same. A per-process suffix on the temp name would close it, and is not there.
+
+Reads carry a milder version of the same thing. `used_percentage` and `resets_at`
+come from separate `jq` invocations, so a file replaced between them yields two
+fields from different renders. `mv` is atomic, so each invocation sees a whole
+file; only the pairing slips, and for these two fields the outcome is the same
+either way.
 
 ## Cost of running it
 
@@ -172,11 +210,26 @@ to both stdout and stderr, and `test-gate.sh` is where that stays true.
 17 cases covering the fail-open table, threshold precedence, config/env
 precedence, each escape hatch, and both hook events.
 
+The sensor has no suite. Its one non-obvious behaviour — a render arriving without
+`rate_limits` must leave existing state untouched, `observed_at` included — was
+checked by hand against all three cases: no state, a reading, then a render without
+one.
+
 ## Status
 
 - [x] Probe and checker
 - [x] `rate_limits` confirmed present on a Max account (Claude Code 2.1.221)
 - [x] Sensor, gate, and test suite
-- [ ] `rate_limits` confirmed on a Team premium seat — the docs only promise the
-      field to Pro/Max subscribers, and Team is where the motivating gap is
+- [x] `rate_limits` confirmed on a Team premium seat (Claude Code 2.1.228) — the
+      docs only promise the field to Pro/Max subscribers, and Team is where the
+      motivating gap is, but it arrives in the same shape: `five_hour` and
+      `seven_day`, `used_percentage` and `resets_at`, no additional windows
+- [x] Gate live-fired on a Team seat against a real reading — `UserPromptSubmit`
+      refused a turn at 2% of the weekly window against a 1% threshold. The first
+      prompt went through, which is what fail-open requires with the state file
+      freshly cleared
+- [x] `PreToolUse` live-fired mid-turn against a real reading — the opening prompt
+      of a session passed, then its first `Bash` call was denied. The model retried
+      once, hit the same denial, and stopped to report rather than working around
+      it; it did not reach for `[guard-bypass]` on its own
 - [ ] Live run against a genuinely exhausted window
