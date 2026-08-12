@@ -96,3 +96,7 @@ the native dependencies are out of scope for this PoC.
 undocumented area of the protocol; this is a technical experiment against a server you
 control. Recording participants may carry consent/legal obligations depending on
 jurisdiction — handle that before any real use.
+
+## Write-up
+
+<a href="https://labee.jp/posts/discord-dave-voice-decrypt-swift"><img src="https://labee.jp/og/posts/discord-dave-voice-decrypt-swift.png" alt="Discordの音声E2EEプロトコルDAVEをSwiftで受信・復号する" width="600"></a>

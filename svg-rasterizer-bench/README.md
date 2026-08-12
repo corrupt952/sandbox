@@ -124,3 +124,7 @@ instead, which `render.sh` captures to `out/<name>.resvg.stderr`:
 ```sh
 resvg fig.svg out.png 2>&1 >/dev/null | grep -q Fallback && echo "unresolved font"
 ```
+
+## Write-up
+
+<a href="https://labee.jp/posts/claude-code-svg-figure-sips-loop"><img src="https://labee.jp/og/posts/claude-code-svg-figure-sips-loop.png" alt="Claude Codeに書かせたSVGをsipsでラスタライズして自分で目視させる" width="600"></a>

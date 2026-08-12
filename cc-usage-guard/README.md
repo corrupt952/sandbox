@@ -233,3 +233,7 @@ one.
       once, hit the same denial, and stopped to report rather than working around
       it; it did not reach for `[guard-bypass]` on its own
 - [ ] Live run against a genuinely exhausted window
+
+## Write-up
+
+<a href="https://labee.jp/posts/claude-code-usage-rate-guard"><img src="https://labee.jp/og/posts/claude-code-usage-rate-guard.png" alt="Claude Codeを任意の使用率で止めるガードを作っている" width="600"></a>

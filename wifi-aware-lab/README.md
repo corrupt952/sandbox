@@ -15,3 +15,7 @@ The repository contains an iOS/iPadOS reference app for discovery, pairing, bidi
 An iPhone and iPad running iOS/iPadOS 26 successfully paired, established publisher/subscriber connections, exchanged messages in both directions, and reported link metrics. On macOS 26, the `WiFiAware` module is present in the SDK but its API declarations are unavailable to macOS applications, so this repository does not claim or expose a supported macOS transport implementation.
 
 The next macOS interoperability check should be repeated if a future macOS SDK publicly enables these declarations.
+
+## Write-up
+
+<a href="https://labee.jp/posts/macos-wifi-aware-api-boundary"><img src="https://labee.jp/og/posts/macos-wifi-aware-api-boundary.png" alt="macOSはWi-Fi Awareの公開APIをまだ開放していない" width="600"></a>
