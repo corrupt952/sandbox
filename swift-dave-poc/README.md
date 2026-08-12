@@ -34,3 +34,7 @@ swift run DavePoC
 Without the sibling `libdave` checkout, `swift build` compiles `main.swift`
 successfully but fails at the link step (`ld: library 'dave' not found`) —
 confirmed in this repo's current state.
+
+## Write-up
+
+<a href="https://labee.jp/posts/discord-dave-swift-libdave-c-interop"><img src="https://labee.jp/og/posts/discord-dave-swift-libdave-c-interop.png" alt="DiscordのE2E暗号化DAVEをSwiftから使うためlibdaveのC APIを直接呼び出した" width="600"></a>
