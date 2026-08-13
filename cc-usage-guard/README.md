@@ -237,3 +237,5 @@ one.
 ## Write-up
 
 <a href="https://labee.jp/posts/claude-code-usage-rate-guard"><img src="https://labee.jp/og/posts/claude-code-usage-rate-guard.png" alt="Claude Codeを任意の使用率で止めるガードを作っている" width="600"></a>
+
+<a href="https://labee.jp/posts/claude-code-usage-guard-live-fire"><img src="https://labee.jp/og/posts/claude-code-usage-guard-live-fire.png" alt="Claude Codeの使用率ガードをTeamシートで止める" width="600"></a>

@@ -128,3 +128,5 @@ resvg fig.svg out.png 2>&1 >/dev/null | grep -q Fallback && echo "unresolved fon
 ## Write-up
 
 <a href="https://labee.jp/posts/claude-code-svg-figure-sips-loop"><img src="https://labee.jp/og/posts/claude-code-svg-figure-sips-loop.png" alt="Claude Codeに書かせたSVGをsipsでラスタライズして自分で目視させる" width="600"></a>
+
+<a href="https://labee.jp/posts/svg-rasterize-resvg-over-sips"><img src="https://labee.jp/og/posts/svg-rasterize-resvg-over-sips.png" alt="SVGのラスタライズをsipsとresvgとChromeで比べる" width="600"></a>
