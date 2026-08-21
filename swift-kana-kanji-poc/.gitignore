@@ -1,0 +1,15 @@
+.build/
+.swiftpm/
+*.xcodeproj
+
+# Language resources are never committed — 2.5 GB of fetched vocabulary and
+# corpus, plus everything built from them. Rebuild with scripts/fetch-*.sh and
+# `kkc build`. dict-src/ is the hand-written input and does belong in the repo.
+dict/
+
+# The Python reference implementation's environment. Excluded here explicitly:
+# uv writes a .gitignore inside it that would hide it anyway, but relying on a
+# generated file to keep 250 MB out of a repo is not a rule.
+.venv/
+__pycache__/
+*.pyc

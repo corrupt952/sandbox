@@ -1,0 +1,36 @@
+# Things the engine must not invent.
+#
+# The target is the feel of MS-IME, and that reputation rests on not breaking
+# rather than on being clever. Under that standard a reading coming back
+# unconverted is fine — the user adds a word, or confirms it once and it is
+# learned. What is not fine is producing something nobody asked for.
+#
+# So this file tests the opposite of word-level.tsv: `!surface` means the
+# surface must not be the *first* candidate. Further down the list is fine —
+# that is what a candidate list is for. Kana output passes.
+#
+# reading<TAB>!forbidden[|!forbidden...]
+
+# Inflection expansion inventing words. 見ず is 文語 and mozc has no such row;
+# ours manufactured it from み(見, 未然形) and it outranked 水.
+# (食べず is not here: mozc carries it, so it is attested rather than invented.)
+みず	!見ず
+かず	!書ず|!描ず
+
+# Expansion must not attach た to a 五段 連用形 (書きた) or the wrong voicing
+# to a euphonic stem (読んた, 泳いた).
+かきた	!書きた
+よんた	!読んた
+およいた	!泳いた
+のんた	!飲んた
+はなしだ	!話しだ
+
+# Segmentation must not merge across an obvious boundary and leave debris.
+# 「明日の天気」+「はどう」→ 波動 is the λ over-merge.
+あしたのてんきはどうですか	!波動
+きょうはあつかった	!教派
+
+# Function words must stay themselves rather than turning into rare nouns.
+です	!デス
+ですか	!デス書き込み
+ました	!マシタ

@@ -1,0 +1,19 @@
+# Genuinely ambiguous: the reading alone does not determine the answer.
+# Both readings below are correct Japanese, so the listed alternatives are all
+# accepted -- what is being measured is whether the engine lands on *a* real
+# sentence rather than word salad. Picking the intended one needs context the
+# engine does not have, and that is the point.
+# reading<TAB>expected[|alternative...]
+きしゃのきしゃがきしゃできしゃした	貴社の記者が汽車で帰社した
+にわにはにわにわとりがいる	庭には二羽鶏がいる|庭には二羽ニワトリがいる
+うらにわにはにわにわとりがいる	裏庭には二羽鶏がいる|裏庭には二羽ニワトリがいる
+きょうはいしゃにいく	今日は医者に行く|今日歯医者に行く
+くるまでまとう	車で待とう|来るまで待とう
+ここではきものをぬいでください	ここで履物を脱いでください|ここでは着物を脱いでください
+そこではしをとってください	そこで箸を取ってください|そこでは市を取ってください|そこで橋を取ってください
+このいかはいかがですか	この烏賊はいかがですか|このイカはいかがですか
+すもももももももものうち	すもももももももものうち|李も桃も桃のうち
+はははははとわらった	母はハハハと笑った
+にほんではしをつかう	日本では箸を使う|日本で橋を使う
+かれがいったことはほんとうだ	彼が言ったことは本当だ|彼が行ったことは本当だ
+あのこうえんにいった	あの公園に行った|あの講演に行った|あの公演に行った

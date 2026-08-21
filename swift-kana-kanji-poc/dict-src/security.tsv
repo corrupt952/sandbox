@@ -1,0 +1,93 @@
+# Security vocabulary, in compact form. `kkc expand` turns this into readings.
+#
+# This is the first mode dictionary, and the domain was chosen because the
+# density of acronyms and product names is unusually high — which is the same
+# thing as saying the detour rate is high. When a term will not convert, the
+# writer goes to a browser, searches, copies, comes back, and has lost the
+# thread. That interruption is what a mode dictionary is for; speed is not the
+# point.
+#
+# It is also the safe end of the risk profile. Measured, added entries do harm
+# through short readings that collide with existing words; readings of six
+# characters or more caused none at all. Spelled-out acronyms land well past
+# that line.
+#
+# surface<TAB>reading[|reading...]<TAB>part-of-speech
+# Readings may be omitted for acronyms: えっくすえすえす is generated.
+
+# --- Web application attacks ---
+XSS	くろすさいとすくりぷてぃんぐ
+CSRF	くろすさいとりくえすとふぉーじぇり
+SSRF	さーばさいどりくえすとふぉーじぇり
+RCE	りもーとこーどじっこう
+SQLインジェクション	えすきゅーえるいんじぇくしょん
+コマンドインジェクション
+ディレクトリトラバーサル
+オープンリダイレクト
+クリックジャッキング
+セッションハイジャック
+クロスサイトスクリプティング
+
+# --- Authentication and authorisation ---
+SAML	さむる
+OIDC	おーぷんあいでぃーこねくと
+OAuth	おーおーす|おーす
+JWT	じぇいそんうぇぶとーくん
+mTLS	そうほうこうてぃーえるえす
+MFA	たようそにんしょう
+SSO	しんぐるさいんおん
+IdP	あいでんてぃてぃぷろばいだ
+多要素認証	たようそにんしょう
+シングルサインオン
+アクセストークン
+リフレッシュトークン
+
+# --- Cryptography and transport ---
+TLS	とらんすぽーとれいやせきゅりてぃ
+HSTS	えいちえすてぃーえす
+CSP	こんてんつせきゅりてぃぽりしー
+CORS	こるす|おりじんかんりそーすきょうゆう
+X.509	えっくすごーまるきゅう
+公開鍵暗号	こうかいかぎあんごう
+共通鍵暗号	きょうつうかぎあんごう
+証明書失効リスト	しょうめいしょしっこうりすと|しーあーるえる
+中間者攻撃	ちゅうかんしゃこうげき
+
+# --- Vulnerability management ---
+CVE	きょうつうぜいじゃくせいしきべつし
+CVSS	きょうつうぜいじゃくせいひょうかしすてむ
+CWE	しーだぶりゅーいー
+SBOM	えすぼむ|そふとうぇあぶつりゅう
+ゼロデイ	ぜろでい
+脆弱性診断	ぜいじゃくせいしんだん
+ペネトレーションテスト	ぺねとれーしょんてすと
+サプライチェーン攻撃	さぷらいちぇーんこうげき
+
+# --- Tools ---
+Burp Suite	ばーぷすいーと
+Metasploit	めたすぷろいと
+Nmap	えぬまっぷ
+Wireshark	わいやーしゃーく
+OWASP	おわすぷ
+Semgrep	せむぐれっぷ
+Trivy	とりびー
+
+# --- Organisations and standards ---
+IPA	じょうほうしょりすいしんきこう
+JPCERT	じぇーぴーさーと
+NIST	にすと
+JVN	じぇーぶいえぬ
+ISO27001	あいえすおーにまんななせんいち
+PCIDSS	ぴーしーあいでぃーえすえす
+
+# --- Operations ---
+SOC	せきゅりてぃおぺれーしょんせんたー
+SIEM	しーむ
+EDR	えんどぽいんとけんちたいおう
+WAF	わふ
+IDS	しんにゅうけんちしすてむ
+IPS	しんにゅうぼうししすてむ
+インシデントレスポンス	いんしでんとれすぽんす
+フォレンジック	ふぉれんじっく
+最小権限の原則	さいしょうけんげんのげんそく
+ゼロトラスト	ぜろとらすと

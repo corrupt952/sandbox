@@ -1,0 +1,94 @@
+# The same content as easy.tsv and tricky.tsv, cut at 文節 boundaries.
+#
+# This is the unit the product actually converts. Typing a whole sentence and
+# pressing space once is what a connection matrix buys you, and this engine
+# does not have one — measured, a scalar-only model does *worse* on whole
+# sentences than on the same text converted phrase by phrase (22.4% vs 26.0%),
+# while a bigram model does better (63.3% vs 60.0%). Tuning against the
+# sentence sets was optimising a number this architecture cannot reach.
+#
+# Keeping both granularities on the same content makes the gap visible rather
+# than hiding it. ambiguous.tsv is deliberately not split: those cases are
+# ambiguous *because* of context that crosses phrase boundaries, so cutting
+# them destroys what they test.
+#
+# reading<TAB>expected[|alternative...]
+
+# --- from easy.tsv ---
+おはようございます	おはようございます
+ありがとうございます	ありがとうございます
+よろしく	よろしく|宜しく
+おねがいします	お願いします|おねがいします
+わたしは	私は
+がくせいです	学生です
+あしたの	明日の
+てんきは	天気は
+どうですか	どうですか
+ほんを	本を
+よみました	読みました
+でんしゃに	電車に
+のります	乗ります
+みずを	水を
+のむ	飲む
+がっこうへ	学校へ
+いく	行く
+ごはんを	ご飯を|ごはんを
+たべる	食べる
+やまに	山に
+のぼる	登る
+てがみを	手紙を
+かく	書く
+ともだちと	友達と
+はなす	話す
+あたらしい	新しい
+くるまを	車を
+かった	買った
+にほんごを	日本語を
+べんきょうする	勉強する
+
+# --- from tricky.tsv ---
+かんじへんかんの	漢字変換の
+せいどを	精度を
+かくにんする	確認する
+じしんが	自信が
+あると	あると|有ると
+はっきり	はっきり
+いえる	言える
+いがいと	意外と
+おもしろかった	面白かった|おもしろかった
+ようけんを	用件を
+つたえておきます	伝えておきます
+きかいが	機会が
+あれば	あれば
+ぜひ	ぜひ|是非
+やりたい	やりたい
+せいかくに	正確に
+つたえて	伝えて
+ください	ください|下さい
+かていを	家庭を
+たいせつに	大切に
+したい	したい
+こうしょうを	交渉を
+すすめている	進めている
+ほしょうの	保証の|補償の|保障の
+たいしょうに	対象に
+なります	なります
+かんしんを	関心を
+もっています	持っています
+たいしょうを	対象を
+しぼりこむ	絞り込む
+かいとうを	回答を|解答を
+おくりました	送りました
+しゅうしゅうした	収集した
+ついきゅう	追求|追究
+すべき	すべき|べき
+かだい	課題
+そうだんしたい	相談したい
+ことが	ことが|事が
+あります	あります|有ります
+ちょっと	ちょっと
+まって	待って
+はやく	早く|速く
+きて	来て
+しごとの	仕事の
+けんについて	件について

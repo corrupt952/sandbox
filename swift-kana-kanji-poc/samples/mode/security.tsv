@@ -1,0 +1,66 @@
+# Security terms, written as someone actually types them.
+#
+# The question this set asks is not "is the ranking good" but "is the word
+# reachable at all". A term that cannot be converted sends the writer to a
+# browser to search and copy it back, and that interruption is the cost the
+# mode dictionary exists to remove. So read the miss count, not the rank:
+# a term at position 3 is fine, a term absent is the failure.
+#
+# reading<TAB>expected[|alternative...]
+えっくすえすえす	XSS
+くろすさいとすくりぷてぃんぐ	XSS|クロスサイトスクリプティング
+しーえすあーるえふ	CSRF
+くろすさいとりくえすとふぉーじぇり	CSRF
+えすえすあーるえふ	SSRF
+あーるしーいー	RCE
+えすきゅーえるいんじぇくしょん	SQLインジェクション
+こまんどいんじぇくしょん	コマンドインジェクション
+でぃれくとりとらばーさる	ディレクトリトラバーサル
+おーぷんりだいれくと	オープンリダイレクト
+くりっくじゃっきんぐ	クリックジャッキング
+せっしょんはいじゃっく	セッションハイジャック
+えすえーえむえる	SAML
+おーぷんあいでぃーこねくと	OIDC
+おーおーす	OAuth
+じぇいそんうぇぶとーくん	JWT
+そうほうこうてぃーえるえす	mTLS
+たようそにんしょう	多要素認証
+しんぐるさいんおん	シングルサインオン
+あくせすとーくん	アクセストークン
+りふれっしゅとーくん	リフレッシュトークン
+とらんすぽーとれいやせきゅりてぃ	TLS
+えいちえすてぃーえす	HSTS
+こんてんつせきゅりてぃぽりしー	CSP
+こるす	CORS
+こうかいかぎあんごう	公開鍵暗号
+きょうつうかぎあんごう	共通鍵暗号
+しょうめいしょしっこうりすと	証明書失効リスト
+ちゅうかんしゃこうげき	中間者攻撃
+きょうつうぜいじゃくせいしきべつし	CVE
+しーぶいえすえす	CVSS
+しーだぶりゅーいー	CWE
+えすぼむ	SBOM
+ぜろでい	ゼロデイ
+ぜいじゃくせいしんだん	脆弱性診断
+ぺねとれーしょんてすと	ペネトレーションテスト
+さぷらいちぇーんこうげき	サプライチェーン攻撃
+ばーぷすいーと	Burp Suite
+めたすぷろいと	Metasploit
+えぬまっぷ	Nmap
+わいやーしゃーく	Wireshark
+おわすぷ	OWASP
+せむぐれっぷ	Semgrep
+とりびー	Trivy
+じょうほうしょりすいしんきこう	IPA
+じぇーぴーさーと	JPCERT
+にすと	NIST
+せきゅりてぃおぺれーしょんせんたー	SOC
+しーむ	SIEM
+えんどぽいんとけんちたいおう	EDR
+だぶりゅーえーえふ	WAF
+しんにゅうけんちしすてむ	IDS
+しんにゅうぼうししすてむ	IPS
+いんしでんとれすぽんす	インシデントレスポンス
+ふぉれんじっく	フォレンジック
+さいしょうけんげんのげんそく	最小権限の原則
+ぜろとらすと	ゼロトラスト
