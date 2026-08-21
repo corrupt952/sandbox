@@ -1,0 +1,8 @@
+From: sender@example.org
+To: agent@example.com
+Subject: Probe with no authentication results
+Message-ID: <probe-002@example.org>
+Date: Wed, 19 Aug 2026 22:00:00 +0900
+Content-Type: text/plain; charset=utf-8
+
+Sent from a domain publishing neither SPF nor DKIM.

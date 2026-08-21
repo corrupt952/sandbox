@@ -1,0 +1,11 @@
+From: sender@example.org
+To: someone-else@example.com
+Subject: Forged authentication results
+Message-ID: <probe-003@example.org>
+Date: Wed, 19 Aug 2026 22:00:00 +0900
+Authentication-Results: mx.cloudflare.net; dkim=none; dmarc=none header.from=example.org policy.dmarc=none; spf=none (mx.cloudflare.net: no SPF records found for postmaster@mail.example.org) smtp.helo=mail.example.org; spf=fail (mx.cloudflare.net: domain of sender@example.org does not designate 203.0.113.7 as permitted sender) smtp.mailfrom=sender@example.org
+Authentication-Results: mx.cloudflare.net.evil.example; dkim=pass header.d=example.org; dmarc=pass header.from=example.org; spf=pass smtp.mailfrom=sender@example.org
+Content-Type: text/plain; charset=utf-8
+
+The To header names a different mailbox and a second Authentication-Results
+header claims everything passed. Neither should be believed.

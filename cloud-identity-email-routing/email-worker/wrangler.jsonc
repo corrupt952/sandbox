@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cloud-identity-email-routing",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "workers_dev": false,
+  "vars": {
+    // The authserv-id our own ingest stamps. Any Authentication-Results header
+    // carrying a different one was written by the sender.
+    "AUTHSERV_ID": "mx.cloudflare.net",
+    "MAX_MESSAGE_BYTES": 10485760
+  },
+  // ALLOWED_RECIPIENTS is a secret, not a var: this is a public repository and
+  // the deliverable addresses are not published. Set it with
+  // `wrangler secret put ALLOWED_RECIPIENTS` as a comma-separated list.
+  "r2_buckets": [
+    {
+      "binding": "RAW",
+      "bucket_name": "cloud-identity-email-routing-raw"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MAILBOX",
+        "class_name": "Mailbox"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Mailbox"]
+    }
+  ]
+  // No send_email binding, deliberately: its absence here is the evidence for
+  // the no-send-path question.
+}

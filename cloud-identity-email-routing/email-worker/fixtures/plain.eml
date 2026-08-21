@@ -1,0 +1,10 @@
+From: sender@example.net
+To: agent@example.com
+Subject: Local delivery probe
+Message-ID: <probe-001@example.net>
+Date: Wed, 19 Aug 2026 22:00:00 +0900
+Authentication-Results: example.com; spf=pass smtp.mailfrom=example.net; dkim=pass header.d=example.net
+Content-Type: text/plain; charset=utf-8
+
+First body line.
+Second body line.
