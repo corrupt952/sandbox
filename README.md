@@ -8,6 +8,7 @@ Each directory is self-contained; see its README for details and setup.
 | Directory | Description |
 |-----------|-------------|
 | [cc-usage-guard](cc-usage-guard/) | Stop Claude Code at a usage percentage you choose — the status line reads `rate_limits`, a hook blocks on it |
+| [cloud-identity-email-routing](cloud-identity-email-routing/) | Giving an agent its own Workspace identity and a mailbox it can receive on but never send from |
 | [docker-cloud9](docker-cloud9/) | Legacy Cloud9 IDE (c9/core) built from source in a CentOS 7 container |
 | [docker-golang-react](docker-golang-react/) | Full-stack sample: React (Vite) frontend + Go backend, dev hot-reload and a single production image |
 | [docker-m1-elasticsearch](docker-m1-elasticsearch/) | Elasticsearch/Kibana OSS 6.8 on Apple Silicon via amd64 emulation, with Japanese analysis plugins |
