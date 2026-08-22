@@ -10,6 +10,7 @@
 		FD22517D3007C78C00832AB3 /* wifi-aware-lab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "wifi-aware-lab.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FD22518B3007C90000832AB3 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		FD22518C3007C90000832AB3 /* Signing.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.local.xcconfig.example; sourceTree = "<group>"; };
+		FD2252003007C78C00832AB3 /* wifi-aware-labTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "wifi-aware-labTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -31,10 +32,22 @@
 			path = "wifi-aware-lab";
 			sourceTree = "<group>";
 		};
+		FD2252013007C78C00832AB3 /* wifi-aware-labTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "wifi-aware-labTests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		FD22517A3007C78C00832AB3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD2252043007C78C00832AB3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -57,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				FD22517D3007C78C00832AB3 /* wifi-aware-lab.app */,
+				FD2252003007C78C00832AB3 /* wifi-aware-labTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,6 +109,29 @@
 			productReference = FD22517D3007C78C00832AB3 /* wifi-aware-lab.app */;
 			productType = "com.apple.product-type.application";
 		};
+		FD2252023007C78C00832AB3 /* wifi-aware-labTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FD22520A3007C78C00832AB3 /* Build configuration list for PBXNativeTarget "wifi-aware-labTests" */;
+			buildPhases = (
+				FD2252033007C78C00832AB3 /* Sources */,
+				FD2252043007C78C00832AB3 /* Frameworks */,
+				FD2252053007C78C00832AB3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FD2252073007C78C00832AB3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				FD2252013007C78C00832AB3 /* wifi-aware-labTests */,
+			);
+			name = "wifi-aware-labTests";
+			packageProductDependencies = (
+			);
+			productName = "wifi-aware-labTests";
+			productReference = FD2252003007C78C00832AB3 /* wifi-aware-labTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -107,6 +144,10 @@
 				TargetAttributes = {
 					FD22517C3007C78C00832AB3 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					FD2252023007C78C00832AB3 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = FD22517C3007C78C00832AB3;
 					};
 				};
 			};
@@ -125,12 +166,38 @@
 			projectRoot = "";
 			targets = (
 				FD22517C3007C78C00832AB3 /* wifi-aware-lab */,
+				FD2252023007C78C00832AB3 /* wifi-aware-labTests */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXContainerItemProxy section */
+		FD2252063007C78C00832AB3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FD2251753007C78C00832AB3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FD22517C3007C78C00832AB3;
+			remoteInfo = "wifi-aware-lab";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		FD2252073007C78C00832AB3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FD22517C3007C78C00832AB3 /* wifi-aware-lab */;
+			targetProxy = FD2252063007C78C00832AB3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXResourcesBuildPhase section */
 		FD22517B3007C78C00832AB3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD2252053007C78C00832AB3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -141,6 +208,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		FD2251793007C78C00832AB3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD2252033007C78C00832AB3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -353,6 +427,46 @@
 			};
 			name = Release;
 		};
+		FD2252083007C78C00832AB3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "jp.labee.wifi-aware-labTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/wifi-aware-lab.app/wifi-aware-lab";
+			};
+			name = Debug;
+		};
+		FD2252093007C78C00832AB3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "jp.labee.wifi-aware-labTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/wifi-aware-lab.app/wifi-aware-lab";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -370,6 +484,15 @@
 			buildConfigurations = (
 				FD2251893007C78D00832AB3 /* Debug */,
 				FD22518A3007C78D00832AB3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FD22520A3007C78C00832AB3 /* Build configuration list for PBXNativeTarget "wifi-aware-labTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FD2252083007C78C00832AB3 /* Debug */,
+				FD2252093007C78C00832AB3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
