@@ -19,9 +19,9 @@ Each directory is self-contained; see its README for details and setup.
 | [docker-run-and-exec-redirect-file](docker-run-and-exec-redirect-file/) | Feeding a local script to `docker run` / `docker exec` via stdin |
 | [docker-unix-domain-socket](docker-unix-domain-socket/) | Nginx → Go app communication over a Unix domain socket shared through a compose volume |
 | [envoy-http-front-envoy](envoy-http-front-envoy/) | Minimal Envoy front proxy in front of an nginx backend (HTTP/1.1) |
+| [envoy-http-front-proxy-benchmark](envoy-http-front-proxy-benchmark/) | Benchmarking Envoy vs nginx as a front proxy with `wrk` |
 | [github-actions-workflows](github-actions-workflows/) | Retired GitHub Actions experiments (concurrency control, triggers, matrix builds) |
 | [k8s-preview-env](k8s-preview-env/) | Per-PR preview environments with ArgoCD ApplicationSet (PR + Plugin generators) |
-| [envoy-http-front-proxy-benchmark](envoy-http-front-proxy-benchmark/) | Benchmarking Envoy vs nginx as a front proxy with `wrk` |
 | [lefthook-lab](lefthook-lab/) | Verifying lefthook/hk Git hooks behavior, including a `core.hooksPath` gotcha that can push installs toward global state |
 | [m5atom-espnow-lab](m5atom-espnow-lab/) | M5Stack Atom Lite ↔ Basic V2.7 ESP-NOW communication and dynamic pairing, plus RSSI/tx-power notes |
 | [m5atom-led-matrix-lab](m5atom-led-matrix-lab/) | FastLED WS2812B experiments on Atom Lite: LED panel, scrolling-text/eyes hat, and a 32x16 badge with browser simulators |
