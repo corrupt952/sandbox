@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+.claude/
+
+# Ghostty's static library and C header are local build inputs. Copy both from
+# the same upstream checkout by following README.md; neither is redistributed.
+Vendor/ghostty/
+Sources/CGhostty/ghostty.h
