@@ -1,0 +1,10 @@
+[project]
+name = "coreai-dynshape-poc"
+version = "0.1.0"
+description = "Probe: does coreai-torch trace a zero-length dynamic-shape gather (the pattern that broke onnxruntime's CoreML EP on Style-Bert-VITS2)?"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "coreai-torch==0.4.1",
+    "torch==2.9.0",
+]
