@@ -54,6 +54,7 @@ Each directory is self-contained; see its README for details and setup.
 | [swift-perspective-cam](swift-perspective-cam/) | macOS SwiftUI prototype: real-time perspective correction of a camera region |
 | [swift-runloop-hang-demo](swift-runloop-hang-demo/) | Reproduces a `dispatchMain()` vs `RunLoop.main.run()` main-queue deadlock |
 | [swift-text-adventure](swift-text-adventure/) | Tiny text adventure engine in a single Swift file, with a game design memo |
+| [swift-workspace-layout-poc](swift-workspace-layout-poc/) | Native macOS rail UI sample with workspace-local panels, tabs, recursive splits, and directional tab drag-and-drop |
 | [terraform-archive-file](terraform-archive-file/) | Zip creation patterns with Terraform's `archive_file` data source |
 | [terraform-lambroll](terraform-lambroll/) | Deploying a TypeScript Lambda with Terraform (infra) + lambroll (function code) |
 | [webxr-neon-butterfly-hands](webxr-neon-butterfly-hands/) | Single-file HTML/CSS/JS visual demo |
