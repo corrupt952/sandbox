@@ -3,5 +3,7 @@
 .direnv/
 .env
 output/
-# libdave is not vendored; see README (build it as a sibling ../libdave checkout)
+# libdave is not vendored; see README (build it as a sibling ../libdave checkout).
+# Its C API header is a local build input copied from that same checkout.
 /libdave
+Sources/CLibDave/dave.h

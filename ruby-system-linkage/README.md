@@ -23,6 +23,7 @@ a shared Rails engine, an internal JSON API, and a periodic Sidekiq worker.
 - redis (for Sidekiq in app2)
 - ImageMagick (rmagick)
 - S3 access key and secret
+- Summernote 0.6.4 in `app1`, fetched by `./fetch-summernote.sh` (see Licensing)
 
 ## Setup
 
@@ -32,9 +33,22 @@ For each app: copy `config/environment.yml.examle` to `config/environment.yml`
 Run app1 on port 3001, app2 on another port, plus `bundle exec sidekiq` for
 app2. Sidekiq's dashboard is mounted at `/sidekiq`.
 
+## Licensing
+
+Every JavaScript and CSS dependency here comes from somewhere else and none of
+them are redistributed from this repository. Bootstrap, jQuery, and Font Awesome
+arrive through the `Gemfile`. [Summernote](https://github.com/summernote/summernote)
+(MIT) is the one that cannot, because 0.6.4 predates its npm packages and the
+asset pipeline expects the files on disk — `fetch-summernote.sh` pulls them from
+the upstream `v0.6.4` tag into `app1/vendor/assets/`, where git ignores them.
+`app/assets/javascripts/summernote.coffee` is this app's own configuration of the
+editor, not part of Summernote.
+
 ## Notes
 
 - Rails 4.2.1 with `therubyracer`, `rmagick`, and `fog` — painful to install on
   modern systems; treat this as an architecture reference.
+- The asset manifests reference Summernote by name, so `bin/setup` fails until
+  `fetch-summernote.sh` has run.
 - Latent typo: app1's routes use `expect:` instead of `except:`, so the option
   is silently ignored and `show` routes are generated anyway.

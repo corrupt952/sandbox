@@ -4,3 +4,8 @@ node_modules/
 .env
 .env.*
 dist/
+
+# Cloudflare's workerd runtime types, emitted by `wrangler types`. Regenerated
+# rather than committed: it is half a megabyte of someone else's declarations
+# and it changes with every runtime release.
+worker-configuration.d.ts

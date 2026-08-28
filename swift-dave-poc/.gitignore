@@ -1,0 +1,4 @@
+# libdave's C API header is a local build input. Copy it from the same upstream
+# checkout you build the library from, by following README.md; it is not
+# redistributed here.
+Sources/CLibDave/dave.h

@@ -56,6 +56,9 @@ so this directory does **not** build standalone — you set up two things first:
    # follow libdave/cpp's README to build via vcpkg
    # (produces build/ and build/vcpkg_installed/arm64-osx/lib/ with libdave.a + deps)
    cd -
+
+   # the C API header comes from that same checkout and is not in this repository
+   cp ../libdave/cpp/includes/dave/dave.h Sources/CLibDave/dave.h
    ```
    `Package.swift` links against `../libdave/cpp/build`.
 
@@ -91,11 +94,16 @@ the native dependencies are out of scope for this PoC.
 
 ## Licensing
 
-`Sources/CLibDave/dave.h` is copied verbatim from Discord's
-[libdave](https://github.com/discord/libdave) (MIT). Discord voice audio reception is an
-undocumented area of the protocol; this is a technical experiment against a server you
-control. Recording participants may carry consent/legal obligations depending on
-jurisdiction — handle that before any real use.
+libdave is distributed under the [MIT License](https://github.com/discord/libdave/blob/main/LICENSE),
+and this repository does not redistribute any part of it. `Sources/CLibDave/dave.h`
+is a local build input copied from the upstream revision you chose, ignored by git,
+same as the compiled library. Distributing a binary built from this PoC means
+satisfying libdave's MIT notice requirement yourself, and reviewing the licenses of
+its dependencies.
+
+Discord voice audio reception is an undocumented area of the protocol; this is a
+technical experiment against a server you control. Recording participants may carry
+consent/legal obligations depending on jurisdiction — handle that before any real use.
 
 ## Write-up
 

@@ -188,9 +188,12 @@ wrangler login --scopes \
 ```sh
 mise install
 pnpm install
+pnpm --filter email-worker exec wrangler types
 ```
 
 `mise.toml` pins node and pnpm for everything below it; `email-worker/` is the only package in the workspace so far, and `cloud-identity/` holds the Admin console half, which is console work with nothing to run.
+
+The third command regenerates `email-worker/worker-configuration.d.ts`, which is not committed. It is half a megabyte of Cloudflare's own workerd declarations, it is derived from `wrangler.jsonc` plus whichever runtime version is pinned, and it changes on its own schedule — so it is a build input here rather than source. Type-checking fails until it has been generated once.
 
 ## The Email Worker
 

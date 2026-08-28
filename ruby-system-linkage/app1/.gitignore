@@ -20,3 +20,7 @@ tmp/*
 config/environment.yml
 db/migrate/*.simple_posts_engine.rb
 public/uploads
+
+# Summernote is fetched, not vendored. See ../fetch-summernote.sh.
+vendor/assets/javascripts/summernote.min.js
+vendor/assets/stylesheets/summernote.css

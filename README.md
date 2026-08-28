@@ -60,3 +60,9 @@ Each directory is self-contained; see its README for details and setup.
 | [terraform-lambroll](terraform-lambroll/) | Deploying a TypeScript Lambda with Terraform (infra) + lambroll (function code) |
 | [webxr-neon-butterfly-hands](webxr-neon-butterfly-hands/) | Single-file HTML/CSS/JS visual demo |
 | [wifi-aware-lab](wifi-aware-lab/) | Public-API Wi-Fi Aware/NAN experiments for iOS, iPadOS, and the macOS SDK boundary |
+
+## License
+
+[MIT](LICENSE).
+
+Nothing here redistributes anyone else's released artifacts. Third-party libraries are pulled in by each experiment's own dependency manager, by a CDN reference, or by a documented fetch step — see the experiment's README where one applies. The one piece of borrowed code that is committed is the 8x8 font table in `m5atom-led-matrix-lab/examples/08_led_hat/main.cpp`, taken from [dhepper/font8x8](https://github.com/dhepper/font8x8), which is public domain and credited in place.
