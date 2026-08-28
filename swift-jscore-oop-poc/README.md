@@ -16,6 +16,7 @@ The companion to [swift-jscore-plugin-sandbox](../swift-jscore-plugin-sandbox/),
 | E5 | Does JSC work under App Sandbox, and at what cost? | containment holds | contained, **~1.00×** — but the JIT hinges on an entitlement, and its absence costs **11.8×** |
 | E6 | Does memory land on the helper's pid? | footprint follows | **+100.9 MiB** for a 100 MB JS allocation |
 | E7 | Does descriptor passing survive the sandbox? | not a rejection criterion | open files yes, directory listing yes, **`openat` beneath a directory no** |
+| E8 | Can a bookmark hand the helper a subtree? | not a rejection criterion | yes — but the **plain** bookmark does it, and the security-scoped one does not cross the process boundary |
 
 Measured on macOS 26.6 (25G72), Apple Silicon, release build, 30 spawns and 1000 ticks per figure. Reproduce with `./run.sh`; the numbers move by a few percent between runs.
 
@@ -59,7 +60,31 @@ What it does not carry is path resolution. `openat(dirfd, "inside.txt")` is deni
 
 So a plugin can be handed a directory and told what is in it, but cannot open anything it finds there. Every file it wants is a separate reverse RPC to the host, which turns one grant into an ongoing conversation rather than a subtree handed over once. Granularity is per-file for reading, per-directory for listing.
 
-This is a limit of SCM_RIGHTS specifically, not of App Sandbox in general — the sanctioned way to hand a sandboxed process a subtree is a security-scoped bookmark or a sandbox extension, neither of which is tested here.
+This is a limit of SCM_RIGHTS specifically, not of App Sandbox in general — the sanctioned way to hand a sandboxed process a subtree is a security-scoped bookmark or a sandbox extension. E8 tests the first of those, and finds a subtree can be handed over after all.
+
+## Finding 3: a bookmark does hand over a subtree — and it is not the security-scoped one
+
+E7 left the capability design pointed at per-file reverse RPC. E8 asks whether the documented mechanism changes that, and the answer is yes, by a route that inverts the assumption behind the question.
+
+The control comes first, because without it nothing below means anything. With no bookmark in play, the sandboxed helper is refused every fixture by path — `share/inside.txt`, `share/nested/deep.txt`, and the canary alike, all `EPERM`. That is the state E7 measured.
+
+Hand the helper a **plain** bookmark — `bookmarkData(options: [])`, no security scope, minted by the unsandboxed host and shipped as bytes over the existing socket — and it resolves, and the subtree opens. `open` succeeds on `inside.txt`, `openat(dirfd, "inside.txt")` succeeds where E7 measured `EPERM`, and `openat(dirfd, "nested/deep.txt")` reaches a level deeper, so this is a subtree and not one directory. `../canary.txt` stays denied through both the path and the descriptor, so the grant is bounded by what was bookmarked.
+
+The security-scoped bookmark, which is the one the design note expected to need, does not survive the process boundary at all. The host mints it (824 bytes) and resolves its own copy without trouble — `startAccessing` returns true and the file beneath reads — but the helper cannot resolve the same bytes: `NSCocoaErrorDomain 256` in the plain sandboxed helper and `259` in one signed with `com.apple.security.files.bookmarks.app-scope` and `.document-scope`. Both variants fail, which is what rules out the entitlement as the explanation; the host-side control is what rules out the blob being invalid. What is left is that the blob is bound to the minting process or to its signing identity — this run cannot tell which, because every configuration that failed was under a sandbox and none tried resolving in a second process of the host's own binary. Either way the helper cannot use it.
+
+Two details of the plain-bookmark grant matter for how a capability would be built on it. Access is present **before** `startAccessingSecurityScopedResource()` is called, and it is still present after `stopAccessing`, so the scope call is not what grants it — resolving is. And the grant survives the recovery path: a helper killed with SIGKILL while holding it is replaced by one that resolves the same bytes and gets the same access, so a kill costs nothing and the host does not have to re-negotiate per respawn.
+
+What this run does not establish is the mechanism. The ordering is measured — the access appears at resolution — but nothing here shows what resolution does underneath, whether an extension is issued and consumed or something else entirely. An undocumented grant is a thin thing to build a capability on, so the practical reading is that subtree granularity is available and cheap to try, not that it is safe to depend on.
+
+Document-scope is not answered and cannot be, in this harness. Creating the bookmark fails outright — `bookmarkData(.withSecurityScope, relativeTo: document)` returns `NSCocoaErrorDomain 256` in every configuration — but the deeper problem is that nothing here goes through `NSOpenPanel`, so there is no user selection for a document-scoped bookmark to descend from, and the helper cannot reach the document by path either. The document would have to arrive before the bookmark does. That bootstrap problem is the finding; which scope a plugin host should choose is not settled.
+
+None of that changes when the minting process is itself sandboxed. It mints larger blobs — 1000 bytes rather than 824 — and the relayed plain bookmark resolves stale (`stale: 1`, where the unsandboxed minter's resolves `stale: 0`) but works anyway: the control is denied, the subtree opens, `..` stays refused, and the grant survives a kill. The security-scoped blob fails exactly as before, and the error code tracks the helper rather than the minter — 256 in the plain sandboxed helper, 259 in the bookmark-entitled one, under both minters. Nothing here explains that split.
+
+Measuring that took giving up on the obvious arrangement, and why is worth recording. A sandboxed process cannot spawn a separately-contained child at all: the entitlements of a child of a sandboxed process must be exactly `app-sandbox` plus `inherit`, and the system aborts a child carrying anything else. That abort is what the second pass records — the run sees only `could not run: peer closed the socket`, and the crash report supplies the shape: SIGTRAP inside `_libsecinit_appsandbox` before `main()`, from the same binary that runs fine under an unsandboxed host. `inherit` is not a way around it, because an inheriting child shares the parent's container, which is the variable being measured; the sanctioned route to a separately-contained child is an XPC service, which this design already rejected for runtime-installed plugins.
+
+So the third pass stops making them parent and child. A bookmark is inert bytes, and what it means is fixed by who minted it and who resolves it, not by how it travelled — so the sandboxed minter writes its blobs into its own container and exits, and an unsandboxed orchestrator reads them out and hands them to a genuinely separately-contained helper. The two are siblings. That the no-bookmark control comes back denied in this arrangement, where the second pass's inheriting child could read everything, is what says the containment being measured is real.
+
+Only public Foundation API is involved. `sandbox_extension_issue_file` and `sandbox_extension_consume` are not called anywhere, so nothing above depends on a private mechanism.
 
 ## How it works
 
@@ -89,6 +114,14 @@ The fix is to link one into the binary rather than wrap the helper in an `.app`:
 
 Everything is ad-hoc signed. The variants are genuinely confined and the flags verify (`flags=0x10002(adhoc,runtime)`), but a Developer ID signed, notarized build was not tested. Notarization requires the hardened runtime, which the `allow-jit` variant already uses, so nothing here suggests a problem — it simply was not tried.
 
+E8's exit code does not reflect E8. Its verdicts are recorded but never counted as failures, because neither answer rejects the design — so a configuration that could not run at all is still reported under `all checks passed`. The second pass in particular prints `could not run: peer closed the socket` for two of its three configurations and the summary stays green. Read the section, not the summary.
+
+What E8 measured is a read grant. Every probe is `open(O_RDONLY)`, `opendir`, or `openat(O_RDONLY)` — writing, creating, and unlinking beneath the subtree were never tried, so "subtree granularity" here means reading a subtree. E7 is explicit that its granularity is per-file for reading and per-directory for listing; this is the same kind of qualifier and it has not been measured away.
+
+The plain-bookmark grant is undocumented as far as this run knows. It was found by measurement, its mechanism is not established, and nothing here says Apple intends it or will keep it. A capability design that depends on it is depending on observed behavior.
+
+A sandboxed host still cannot own the helper. The third pass measures a sandboxed *minter*, which is the variable the bookmark result depends on, but it does so by running the two as siblings. Whether a sandboxed host can hold a separately-contained plugin helper as a child is a different question, and the answer there is no by rule rather than by measurement — `inherit` shares the container, and the only sanctioned alternative is the XPC service this design rejected. A host that has to be sandboxed needs that settled before any of this transfers.
+
 The helper trusts the host's framing. Nothing here hardens the host against a malicious helper beyond capping frame size — the threat model is a buggy or runaway plugin, not a hostile one that has already taken over the helper process.
 
 The 500 ms hang deadline is a parameter, not a finding. Nothing here measures what deadline a real plugin workload needs, only that a deadline works.
@@ -109,6 +142,10 @@ macOS 26+ on Apple Silicon. No provisioning profile — `run.sh` ad-hoc signs th
 ./run.sh --cold-binary-runs 30                 # more samples for the cold-binary case
 ```
 
-`run.sh` builds, produces four copies of the helper (plain; sandboxed; hardened without `allow-jit`; sandboxed and hardened with `allow-jit`), and runs every experiment. It exits non-zero when a check fails and prints which one.
+`run.sh` builds, produces five copies of the helper (plain; sandboxed; hardened without `allow-jit`; sandboxed and hardened with `allow-jit`; sandboxed with the two bookmark entitlements), and runs every experiment. It exits non-zero when a check fails and prints which one. E8's verdicts are the exception: none of them counts as a failure. An error inside E8 still aborts the run, so this is about its judgements, not its immunity.
+
+It then signs a sandboxed copy of the host and runs E8 through it twice more, because minting a bookmark is an App Sandbox facility and a host that is not contained cannot answer whether a contained one behaves differently. The second pass has it spawn helpers directly, which is where the abort above shows up; the third splits minting from probing so the sandboxed minter and the sandboxed helper are siblings rather than parent and child, and that is the pass that actually measures a contained minter.
+
+Both take absolute helper paths: App Sandbox redirects the host's working directory into its container, so a relative path fails with `ENOENT` before the sandbox has an opinion. The sandboxed copy's entitlements are generated at signing time rather than committed — spawning a helper outside its container needs a read-only temporary exception for the build directory, and that path is machine-specific. The minter writes its blobs inside its own container, since that exception is read-only and its container is the one place it can write.
 
 `swift build` spawns its own `sandbox-exec`, which fails inside another sandbox — `sandbox-exec: sandbox_apply: Operation not permitted` is what that nesting looks like. Building from an already-sandboxed shell needs that shell to allow it.

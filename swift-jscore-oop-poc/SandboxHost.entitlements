@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- For E8 only. Minting a security-scoped bookmark is documented as an App
+	     Sandbox facility, so the run needs a host that is itself contained and
+	     carries the bookmark entitlements — otherwise a failure to create one says
+	     nothing about whether the mechanism works. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.document-scope</key>
+	<true/>
+	<!-- run.sh adds a read-only temporary exception for the build directory to a
+	     generated copy of this file. A sandboxed host cannot posix_spawn a helper
+	     sitting outside its container, and without that exception the second pass
+	     would fail before it measured anything. The absolute path is machine-specific,
+	     which is why it is generated rather than committed. -->
+</dict>
+</plist>

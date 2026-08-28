@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Same reason as the helper's: only the sandboxed copy signed for E8 needs a
+	     container identifier, but the section is harmless in the plain host and
+	     keeping one binary means the two runs measure the same code. -->
+	<key>CFBundleIdentifier</key>
+	<string>dev.zuki.jscore-oop-host</string>
+	<key>CFBundleName</key>
+	<string>OOPHost</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+</dict>
+</plist>

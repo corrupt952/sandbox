@@ -32,6 +32,10 @@ let defaultHelper = URL(fileURLWithPath: CommandLine.arguments[0])
 
 let helperPath = optionValue("--helper") ?? defaultHelper
 let sandboxedHelperPath = optionValue("--sandboxed-helper")
+/// Sandboxed, plus the bookmark entitlements. E8 needs both this and the plain
+/// sandboxed helper: with only one of them, a failed resolve cannot be told apart
+/// from a missing entitlement.
+let bookmarkHelperPath = optionValue("--bookmark-helper")
 /// Sandboxed and hardened, with `allow-jit` withheld. Isolates the hardened runtime
 /// from the entitlement, which turn out to be different questions.
 let hardenedHelperPath = optionValue("--hardened-helper")
@@ -154,11 +158,19 @@ let workDir = FileManager.default.temporaryDirectory
 let shareDir = workDir.appendingPathComponent("share")
 let insideFile = shareDir.appendingPathComponent("inside.txt")
 let canaryFile = workDir.appendingPathComponent("canary.txt")
+/// One level further down, so "the subtree" is distinguishable from "the directory
+/// itself" — a grant that stops at the first level is not a subtree grant.
+let nestedDir = shareDir.appendingPathComponent("nested")
+let deepFile = nestedDir.appendingPathComponent("deep.txt")
+/// Stands in for the document a document-scoped bookmark would be stored inside.
+let documentFile = workDir.appendingPathComponent("document.txt")
 
 func makeFixtures() throws {
-  try FileManager.default.createDirectory(at: shareDir, withIntermediateDirectories: true)
+  try FileManager.default.createDirectory(at: nestedDir, withIntermediateDirectories: true)
   try "INSIDE-OK\n".write(to: insideFile, atomically: true, encoding: .utf8)
+  try "DEEP-OK\n".write(to: deepFile, atomically: true, encoding: .utf8)
   try "CANARY-VISIBLE\n".write(to: canaryFile, atomically: true, encoding: .utf8)
+  try "DOCUMENT\n".write(to: documentFile, atomically: true, encoding: .utf8)
 }
 
 // MARK: - E1  cold start
@@ -545,7 +557,513 @@ func experimentDescriptorPassing(helper: String, label: String, expectConfinemen
   }
 }
 
+// MARK: - E8  security-scoped bookmarks
+
+/// E7 settled that SCM_RIGHTS carries operations rather than path resolution. The
+/// documented way to hand a sandboxed process a subtree is a security-scoped
+/// bookmark, which E7 did not touch. The question is not whether bookmarks work —
+/// it is whether they work *across processes*, since a plugin helper is not the
+/// process that created the bookmark.
+func bookmarkLine(_ what: String, _ report: Any?) -> String {
+  guard let result = report as? [String: Any] else { return "\(what) → not attempted" }
+  if result["ok"] as? Bool == true {
+    if let entries = result["entries"] as? [String] { return "\(what) → \(entries)" }
+    if let head = result["head"] as? String {
+      return "\(what) → \"\(head.trimmingCharacters(in: .whitespacesAndNewlines))\""
+    }
+    return "\(what) → ok"
+  }
+  let why = result["errnoText"] ?? result["why"] ?? "?"
+  return "\(what) → denied (\(why))"
+}
+
+/// "The file couldn't be opened." on its own is not a finding. The domain and code
+/// are what distinguish one refusal from another.
+func describe(_ error: Error) -> String {
+  let ns = error as NSError
+  return "\(ns.domain) \(ns.code): \(ns.localizedDescription)"
+}
+
+/// Everything one process mints, in a form another process can pick up.
+///
+/// A bookmark is inert bytes: what it means is decided by who minted it and who
+/// resolves it, not by how it travelled. Separating the two ends into sibling
+/// processes is what lets a *sandboxed* minter be measured at all — a sandboxed
+/// parent cannot spawn a separately-contained child, so the pair cannot be
+/// parent and child.
+struct MintedBlobs {
+  var subtree = ""
+  var inside = ""
+  var deep = ""
+  var canary = ""
+  var document = ""
+  var scoped: Data?
+  var plain: Data?
+  var documentScoped: Data?
+  var minterSandboxed = false
+
+  var json: [String: Any] {
+    var out: [String: Any] = [
+      "subtree": subtree, "inside": inside, "deep": deep, "canary": canary,
+      "document": document, "minterSandboxed": minterSandboxed,
+    ]
+    if let scoped { out["scoped"] = scoped.base64EncodedString() }
+    if let plain { out["plain"] = plain.base64EncodedString() }
+    if let documentScoped { out["documentScoped"] = documentScoped.base64EncodedString() }
+    return out
+  }
+
+  init() {}
+
+  init(json: [String: Any]) {
+    subtree = json["subtree"] as? String ?? ""
+    inside = json["inside"] as? String ?? ""
+    deep = json["deep"] as? String ?? ""
+    canary = json["canary"] as? String ?? ""
+    document = json["document"] as? String ?? ""
+    minterSandboxed = json["minterSandboxed"] as? Bool ?? false
+    scoped = (json["scoped"] as? String).flatMap { Data(base64Encoded: $0) }
+    plain = (json["plain"] as? String).flatMap { Data(base64Encoded: $0) }
+    documentScoped = (json["documentScoped"] as? String).flatMap { Data(base64Encoded: $0) }
+  }
+}
+
+func makeBookmark(
+  _ url: URL, options: URL.BookmarkCreationOptions, relativeTo: URL? = nil
+) -> Result<Data, Error> {
+  do {
+    return .success(
+      try url.bookmarkData(
+        options: options, includingResourceValuesForKeys: nil, relativeTo: relativeTo))
+  } catch {
+    return .failure(error)
+  }
+}
+
+/// What one bookmark probe established.
+///
+/// `grantedOnResolve` was originally read as a confound — the helper opening the
+/// file before `startAccessingSecurityScopedResource` looked like the path having
+/// been reachable all along. The no-bookmark control says otherwise: the same open
+/// is denied when no bookmark is in play. So this flag is a finding, not a
+/// disqualifier — access appears at resolution time rather than at the scope call.
+/// The control that decides whether anything here is attributable to the bookmark
+/// is the caller's, not this struct's.
+struct BookmarkOutcome {
+  var resolved = false
+  var started = false
+  var grantedOnResolve = false
+  var subtreeOpened = false
+  var grantsSubtree: Bool { resolved && subtreeOpened }
+}
+
+/// Resolves the blob in the host process itself. Without this, a failure in the
+/// helper has two explanations — the bookmark is bound to the process that minted
+/// it, or the blob was never valid in the first place — and the run cannot tell
+/// them apart.
+func resolveInHost(data: Data, scoped: Bool, document: URL? = nil) -> String {
+  var options: URL.BookmarkResolutionOptions = [.withoutUI, .withoutMounting]
+  if scoped { options.insert(.withSecurityScope) }
+  var stale = false
+  do {
+    let url = try URL(
+      resolvingBookmarkData: data, options: options, relativeTo: document,
+      bookmarkDataIsStale: &stale)
+    let started = url.startAccessingSecurityScopedResource()
+    let inside = url.appendingPathComponent("inside.txt").path
+    let readable = FileManager.default.contents(atPath: inside) != nil
+    if started { url.stopAccessingSecurityScopedResource() }
+    return
+      "resolved (stale: \(stale), startAccessing: \(started), inside.txt readable: \(readable))"
+  } catch {
+    return "failed — " + describe(error)
+  }
+}
+
+/// Sends one bookmark to a fresh helper and prints every step of what it could do
+/// with it. `holdAndKill` leaves the scope open and SIGKILLs the helper instead of
+/// shutting it down, which is what question 5 actually asks about.
+@discardableResult
+func probeBookmark(
+  helper: String, data: Data, scoped: Bool, document: URL? = nil, label: String,
+  holdAndKill: Bool = false
+) throws -> BookmarkOutcome {
+  let process = try spawnLoaded(Scripts.summarize, helper: helper)
+  var request: [String: Any] = [
+    "op": "probe", "what": "bookmark",
+    "data": data.base64EncodedString(),
+    "scoped": scoped,
+    "relative": "inside.txt",
+    "deep": "nested/deep.txt",
+    "escape": "../canary.txt",
+    "hold": holdAndKill,
+  ]
+  if let document { request["document"] = document.path }
+  let reply = try process.call(request, deadline: ContinuousClock.now + .seconds(20))
+  if holdAndKill {
+    // Dies with the scope still held, which is the state a wedged plugin is in when
+    // the host reaches for SIGKILL.
+    process.kill()
+    process.reap()
+  } else {
+    process.shutdown()
+  }
+
+  var outcome = BookmarkOutcome()
+  guard reply["resolved"] as? Bool == true else {
+    note(
+      "\(label): resolve failed — \(reply["error"] ?? reply["why"] ?? "?")"
+        + " [\(reply["errorDomain"] ?? "") \(reply["errorCode"] ?? "")]")
+    return outcome
+  }
+  outcome.resolved = true
+  outcome.started = reply["started"] as? Bool ?? false
+  note("\(label): resolved to \(reply["path"] ?? "?") (stale: \(reply["stale"] ?? "?"))")
+  note("  " + bookmarkLine("open(inside.txt) BEFORE startAccessing", reply["beforeStart"]))
+  note("  startAccessingSecurityScopedResource() → \(reply["started"] ?? "?")")
+  note("  " + bookmarkLine("opendir(subtree)", reply["list"]))
+  note("  " + bookmarkLine("open(inside.txt)", reply["insideByPath"]))
+  note("  " + bookmarkLine("open(nested/deep.txt)", reply["deepByPath"]))
+  note("  " + bookmarkLine("open(subtree) as a directory", reply["dirOpen"]))
+  note("  " + bookmarkLine("openat(dirfd, \"inside.txt\")", reply["insideByOpenat"]))
+  note("  " + bookmarkLine("openat(dirfd, \"nested/deep.txt\")", reply["deepByOpenat"]))
+  note("  " + bookmarkLine("openat(dirfd, \"../canary.txt\")", reply["escapeByOpenat"]))
+  note("  " + bookmarkLine("open(../canary.txt)", reply["escapeByPath"]))
+  if holdAndKill {
+    note("  scope left open, helper SIGKILLed")
+  } else {
+    note("  " + bookmarkLine("open(inside.txt) after stopAccessing", reply["afterStop"]))
+  }
+
+  let inside = (reply["insideByPath"] as? [String: Any])?["ok"] as? Bool ?? false
+  let deep = (reply["deepByPath"] as? [String: Any])?["ok"] as? Bool ?? false
+  let openat = (reply["insideByOpenat"] as? [String: Any])?["ok"] as? Bool ?? false
+  outcome.subtreeOpened = inside && deep && openat
+  outcome.grantedOnResolve = (reply["beforeStart"] as? [String: Any])?["ok"] as? Bool ?? false
+  if outcome.grantedOnResolve {
+    note(
+      "  → access was there before startAccessing: resolving the bookmark is what"
+        + " granted it, not the scope call")
+  }
+  return outcome
+}
+
+/// Mints all three variants and resolves them here, in the minting process. That
+/// second half is the control: without it, a helper-side failure could equally mean
+/// the blob was never valid.
+func mintBlobs() -> MintedBlobs {
+  var blobs = MintedBlobs()
+  blobs.subtree = shareDir.path
+  blobs.inside = insideFile.path
+  blobs.deep = deepFile.path
+  blobs.canary = canaryFile.path
+  blobs.document = documentFile.path
+  blobs.minterSandboxed = NSHomeDirectory().contains("/Library/Containers/")
+
+  // A security-scoped bookmark is documented as an App Sandbox facility, so whether
+  // an unsandboxed process can even mint one is part of the answer.
+  switch makeBookmark(shareDir, options: .withSecurityScope) {
+  case .success(let data):
+    blobs.scoped = data
+    note("bookmarkData(.withSecurityScope) → \(data.count) bytes")
+  case .failure(let error):
+    note("bookmarkData(.withSecurityScope) → failed: \(describe(error))")
+  }
+
+  switch makeBookmark(shareDir, options: []) {
+  case .success(let data):
+    blobs.plain = data
+    note("bookmarkData([]) → \(data.count) bytes")
+  case .failure(let error):
+    note("bookmarkData([]) → failed: \(describe(error))")
+  }
+
+  // Document-scoped: the same option, but made relative to a document. The focus is
+  // whether a manifest-declared path can stand in for the document a user picked.
+  switch makeBookmark(shareDir, options: .withSecurityScope, relativeTo: documentFile) {
+  case .success(let data):
+    blobs.documentScoped = data
+    note("bookmarkData(.withSecurityScope, relativeTo: document) → \(data.count) bytes")
+  case .failure(let error):
+    note("bookmarkData(.withSecurityScope, relativeTo: document) → failed: " + describe(error))
+  }
+
+  if let scoped = blobs.scoped {
+    note("minter resolving its own app-scoped blob → \(resolveInHost(data: scoped, scoped: true))")
+  }
+  if let documentScoped = blobs.documentScoped {
+    note(
+      "minter resolving its own document-scoped blob → "
+        + resolveInHost(data: documentScoped, scoped: true, document: documentFile))
+  }
+  return blobs
+}
+
+/// Mints in this process, then probes. The ordinary case, where minter and
+/// orchestrator are the same process.
+func experimentBookmarks(helper: String, label: String) throws {
+  section("E8  security-scoped bookmark across processes — \(label)")
+  let hostContained = NSHomeDirectory().contains("/Library/Containers/")
+  note("host is \(hostContained ? "sandboxed (container: \(NSHomeDirectory()))" : "unsandboxed")")
+  note("subtree: \(shareDir.path)")
+  try probeMintedBlobs(helper: helper, blobs: mintBlobs())
+}
+
+/// Probes blobs someone else already minted. Splitting this out is what makes a
+/// sandboxed minter measurable: it mints into its own container and exits, and this
+/// runs in an unsandboxed process that can still spawn a separately-contained
+/// helper — something the sandboxed minter itself is not allowed to do.
+func probeMintedBlobs(helper: String, blobs: MintedBlobs) throws {
+  let insideFile = URL(fileURLWithPath: blobs.inside)
+  let deepFile = URL(fileURLWithPath: blobs.deep)
+  let canaryFile = URL(fileURLWithPath: blobs.canary)
+  let documentFile = URL(fileURLWithPath: blobs.document)
+  let scopedData = blobs.scoped
+  let plainData = blobs.plain
+  let documentData = blobs.documentScoped
+
+  // The control the first run was missing. E7 establishes that the helper cannot
+  // open the canary at the top of the work directory, but that says nothing about
+  // the share subtree one level down — and the first run found the helper opening
+  // share/inside.txt before any scope was started. Asking with no bookmark in play
+  // at all is what separates "the bookmark granted this" from "the path was open".
+  let baseline = try { () -> (inside: Bool, deep: Bool, canary: Bool) in
+    let process = try spawnLoaded(Scripts.summarize, helper: helper)
+    defer { process.shutdown() }
+    let deadline = { ContinuousClock.now + .seconds(20) }
+    func ask(_ url: URL) throws -> [String: Any] {
+      try process.call(["op": "probe", "what": "open", "path": url.path], deadline: deadline())
+    }
+    let insideReply = try ask(insideFile)
+    let deepReply = try ask(deepFile)
+    let canaryReply = try ask(canaryFile)
+    note("no bookmark at all — " + bookmarkLine("open(share/inside.txt)", insideReply))
+    note("no bookmark at all — " + bookmarkLine("open(share/nested/deep.txt)", deepReply))
+    note("no bookmark at all — " + bookmarkLine("open(canary.txt)", canaryReply))
+    return (
+      insideReply["ok"] as? Bool ?? false,
+      deepReply["ok"] as? Bool ?? false,
+      canaryReply["ok"] as? Bool ?? false
+    )
+  }()
+  if baseline.inside || baseline.deep {
+    note(
+      "→ the subtree is already reachable by path without any bookmark, so nothing"
+        + " this section measures can be attributed to one")
+  }
+
+  var scopedOutcome = BookmarkOutcome()
+  if let scopedData {
+    scopedOutcome = try probeBookmark(
+      helper: helper, data: scopedData, scoped: true, label: "app-scoped")
+  }
+  // Not a formality. The first run found this variant delegating the subtree while
+  // the security-scoped one could not even be resolved, which is the opposite of
+  // what the design note expected, so it carries the result rather than the control.
+  var plainOutcome = BookmarkOutcome()
+  if let plainData {
+    plainOutcome = try probeBookmark(
+      helper: helper, data: plainData, scoped: false, label: "plain bookmark")
+  }
+  if let documentData {
+    _ = try probeBookmark(
+      helper: helper, data: documentData, scoped: true, document: documentFile,
+      label: "document-scoped")
+  }
+  // Question 3 cannot be settled here and saying so is part of the result: nothing in
+  // this harness goes through NSOpenPanel, so a document-scoped bookmark is being
+  // made relative to a document the helper cannot reach by path either. What the run
+  // can record is the bootstrap problem — the document has to arrive before the
+  // bookmark does — not which scope a plugin host should choose.
+  note(
+    "→ document-scope caveat: no user-selection path exists in this harness, and the"
+      + " helper cannot reach the document by path, so this probe records the bootstrap"
+      + " problem rather than deciding app-scope vs document-scope")
+
+  // Not a pass/fail. Either answer leaves the design standing; it decides whether
+  // capability granularity is a subtree handed over once or a file at a time.
+  //
+  // The confound control is the no-bookmark baseline above, not anything measured
+  // inside a probe: every step of a probe happens after a resolve, so a probe cannot
+  // establish what was reachable before one.
+  let confounded = baseline.inside || baseline.deep
+  // Whichever variant delegated, if either did. The design cares that a subtree can
+  // be handed over at all; which blob does it is the next question, not this one.
+  let working: (data: Data, scoped: Bool, label: String)? =
+    scopedOutcome.grantsSubtree
+    ? scopedData.map { ($0, true, "app-scoped") }
+    : (plainOutcome.grantsSubtree ? plainData.map { ($0, false, "plain") } : nil)
+
+  if confounded {
+    verdict(
+      nil,
+      "inconclusive here — the subtree was reachable by path without any bookmark,"
+        + " so this configuration cannot attribute anything to one")
+  } else if let working {
+    verdict(
+      nil,
+      "the \(working.label) bookmark delegates the subtree: the helper opens files"
+        + " beneath it that it is refused without one → capability can be granted per"
+        + " subtree rather than per file")
+    if working.label == "plain" {
+      verdict(
+        nil,
+        "and it is the plain bookmark that does it — the security-scoped variant did"
+          + " not survive the process boundary, which is the reverse of the assumption")
+    }
+  } else {
+    verdict(
+      nil,
+      "no bookmark variant delegated the subtree → capability stays per-file over the"
+        + " reverse RPC")
+  }
+
+  // Question 5. SIGKILL while the scope is still held is the normal recovery path
+  // here, so the question is whether the same bytes still work in the replacement —
+  // a grant that has to be re-negotiated after every kill is a different design.
+  if !confounded, let working {
+    _ = try probeBookmark(
+      helper: helper, data: working.data, scoped: working.scoped,
+      label: "holding the grant, then SIGKILL", holdAndKill: true)
+    let again = try probeBookmark(
+      helper: helper, data: working.data, scoped: working.scoped,
+      label: "replacement helper after the kill")
+    verdict(
+      nil,
+      again.grantsSubtree
+        ? "the same serialized bookmark works again in a replacement helper — a kill"
+          + " does not cost the grant"
+        : "the bookmark does not survive a respawn — the grant has to be re-negotiated")
+  } else {
+    note("→ question 5 (SIGKILL then respawn) is moot: there was no working grant to lose")
+  }
+}
+
 // MARK: - Run
+
+/// The bookmark experiment is the only one that needs the host itself to be
+/// sandboxed, and sandboxing the host would change every other baseline. So the
+/// sandboxed host copy runs with this flag and nothing else.
+let onlyBookmarks = CommandLine.arguments.contains("--only-bookmarks")
+
+// The two halves of the sibling relay. A sandboxed process may not spawn a
+// separately-contained child — the system aborts one carrying any App Sandbox
+// entitlement other than `inherit` — so the sandboxed minter and the sandboxed
+// helper cannot be parent and child. They can be siblings: the minter writes the
+// blobs out and exits, and an unsandboxed orchestrator hands them to the helper.
+if let outfile = optionValue("--mint-only") {
+  do {
+    print("bookmark minting only — writing blobs for a sibling process to probe")
+    print("fixtures:          \(workDir.path)")
+    try makeFixtures()
+    section(
+      "E8  minting — \(NSHomeDirectory().contains("/Library/Containers/") ? "sandboxed minter" : "unsandboxed minter")"
+    )
+    note("home: \(NSHomeDirectory())")
+    note("subtree: \(shareDir.path)")
+    let blobs = mintBlobs()
+    let encoded = try JSONSerialization.data(withJSONObject: blobs.json)
+    try encoded.write(to: URL(fileURLWithPath: outfile))
+    note("wrote \(encoded.count) bytes to \(outfile)")
+    // The work directory deliberately survives: the sibling has to find the subtree
+    // the blobs point at. run.sh cleans it up.
+    exit(0)
+  } catch {
+    print("")
+    print("mint aborted: \(error)")
+    exit(2)
+  }
+}
+
+if let infile = optionValue("--probe-blobs") {
+  do {
+    let raw = try Data(contentsOf: URL(fileURLWithPath: infile))
+    guard let object = try JSONSerialization.jsonObject(with: raw) as? [String: Any] else {
+      throw Failure("blob file is not a JSON object")
+    }
+    let blobs = MintedBlobs(json: object)
+    print("bookmark probing only — blobs minted by a sibling process")
+    print(
+      "orchestrator is \(NSHomeDirectory().contains("/Library/Containers/") ? "sandboxed" : "unsandboxed")"
+    )
+    print("minter was      \(blobs.minterSandboxed ? "sandboxed" : "unsandboxed")")
+    print("subtree:        \(blobs.subtree)")
+    var variants: [(String, String)] = []
+    if let sandboxed = sandboxedHelperPath {
+      variants.append((sandboxed, "sandboxed helper"))
+    }
+    if let bookmarkHelper = bookmarkHelperPath {
+      variants.append((bookmarkHelper, "helper with bookmark entitlements"))
+    }
+    for (helper, label) in variants {
+      section(
+        "E8  relayed from a \(blobs.minterSandboxed ? "sandboxed" : "unsandboxed") minter — \(label)"
+      )
+      do {
+        try probeMintedBlobs(helper: helper, blobs: blobs)
+      } catch {
+        verdict(nil, "could not run: \(error)")
+      }
+    }
+    section("summary")
+    print(failures.isEmpty ? "   all checks passed" : "   \(failures.count) check(s) failed")
+    exit(0)
+  } catch {
+    print("")
+    print("probe aborted: \(error)")
+    exit(2)
+  }
+}
+
+if onlyBookmarks {
+  do {
+    print("security-scoped bookmark run — sandboxed host")
+    print("helper:            \(helperPath)")
+    print("sandboxed helper:  \(sandboxedHelperPath ?? "(not provided)")")
+    print("fixtures:          \(workDir.path)")
+    try makeFixtures()
+    // What this pass is actually for: whether a contained host can mint a bookmark
+    // at all, and whether it resolves in the minting process. The helper-side
+    // results below are secondary — a child of a sandboxed host inherits that
+    // sandbox, so "the helper" here is not the configuration the design ships, and
+    // the fixtures sit inside the host's own container where the child may reach
+    // them without any bookmark. probeBookmark's beforeStart control is what says
+    // when that has happened.
+    note("this pass answers minting, not delegation — see the beforeStart control")
+    var variants: [(String, String)] = [(helperPath, "child inheriting the host's sandbox")]
+    if let sandboxed = sandboxedHelperPath {
+      variants.append((sandboxed, "helper with its own app-sandbox entitlement"))
+    }
+    if let bookmarkHelper = bookmarkHelperPath {
+      variants.append((bookmarkHelper, "helper with bookmark entitlements"))
+    }
+    for (helper, label) in variants {
+      // A sandboxed host may not be able to spawn a helper outside its container at
+      // all. That is a finding about this configuration, not a reason to abort the
+      // pass before the other variants have been tried.
+      do {
+        try experimentBookmarks(helper: helper, label: label)
+      } catch {
+        section("E8  security-scoped bookmark across processes — \(label)")
+        verdict(nil, "could not run: \(error)")
+      }
+    }
+    section("summary")
+    if failures.isEmpty {
+      print("   all checks passed")
+    } else {
+      print("   \(failures.count) check(s) failed:")
+      for failure in failures { print("     - \(failure)") }
+    }
+    try? FileManager.default.removeItem(at: workDir)
+    exit(failures.isEmpty ? 0 : 1)
+  } catch {
+    print("")
+    print("run aborted: \(error)")
+    try? FileManager.default.removeItem(at: workDir)
+    exit(2)
+  }
+}
 
 do {
   print("out-of-process JavaScriptCore plugin execution — measurement run")
@@ -614,6 +1132,13 @@ do {
         + "\(fmt(sandboxedThroughput.loop / plainThroughput.loop, 2))× (engine work)")
     try experimentDescriptorPassing(
       helper: sandboxed, label: "sandboxed helper", expectConfinement: true)
+    // The shape the design actually has: an unsandboxed host minting the grant for a
+    // sandboxed helper. run.sh runs the sandboxed-host case separately.
+    try experimentBookmarks(helper: sandboxed, label: "unsandboxed host → sandboxed helper")
+    if let bookmarkHelper = bookmarkHelperPath {
+      try experimentBookmarks(
+        helper: bookmarkHelper, label: "unsandboxed host → helper with bookmark entitlements")
+    }
   }
 
   if let hardened = hardenedHelperPath {

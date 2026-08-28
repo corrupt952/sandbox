@@ -26,7 +26,18 @@ let package = Package(
     .executableTarget(
       name: "OOPHost",
       dependencies: ["PluginIPC", "CPluginIPC"],
-      path: "Sources/OOPHost"
+      path: "Sources/OOPHost",
+      exclude: ["Info.plist"],
+      linkerSettings: [
+        // E8 signs a sandboxed copy of the host, which needs a container identifier
+        // for the same reason the helper does.
+        .unsafeFlags([
+          "-Xlinker", "-sectcreate",
+          "-Xlinker", "__TEXT",
+          "-Xlinker", "__info_plist",
+          "-Xlinker", "Sources/OOPHost/Info.plist",
+        ])
+      ]
     ),
   ]
 )

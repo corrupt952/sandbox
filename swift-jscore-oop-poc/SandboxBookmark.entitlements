@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Same containment as Sandbox.entitlements, plus the two bookmark entitlements.
+	     Without this variant a resolve failure in the helper has two explanations —
+	     the bookmark is bound to the process that minted it, or the helper simply
+	     lacks the entitlement to use one — and E8 cannot tell them apart. Running the
+	     same probe against both helpers is what separates them. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.document-scope</key>
+	<true/>
+</dict>
+</plist>

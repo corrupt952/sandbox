@@ -93,6 +93,49 @@ func readSome(_ fd: Int32, limit: Int = 128) -> String? {
   return String(decoding: buffer[0..<n], as: UTF8.self)
 }
 
+/// All three report the same shape, so the host can print an attempt without caring
+/// whether it went through a path, a descriptor, or a directory stream.
+func openReport(_ path: String) -> [String: Any] {
+  let fd = open(path, O_RDONLY)
+  if fd < 0 {
+    let code = errno
+    return ["ok": false, "errno": Int(code), "errnoText": String(cString: strerror(code))]
+  }
+  let head = readSome(fd)
+  close(fd)
+  return ["ok": true, "head": head ?? ""]
+}
+
+func openatReport(_ dirFD: Int32, _ name: String) -> [String: Any] {
+  let fd = openat(dirFD, name, O_RDONLY)
+  if fd < 0 {
+    let code = errno
+    return ["ok": false, "errno": Int(code), "errnoText": String(cString: strerror(code))]
+  }
+  let head = readSome(fd)
+  close(fd)
+  return ["ok": true, "head": head ?? ""]
+}
+
+func listReport(_ path: String) -> [String: Any] {
+  guard let stream = opendir(path) else {
+    let code = errno
+    return ["ok": false, "errno": Int(code), "errnoText": String(cString: strerror(code))]
+  }
+  var names: [String] = []
+  while let entry = readdir(stream) {
+    var raw = entry.pointee.d_name
+    let name = withUnsafePointer(to: &raw) {
+      $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) {
+        String(cString: $0)
+      }
+    }
+    if name != "." && name != ".." { names.append(name) }
+  }
+  closedir(stream)
+  return ["ok": true, "entries": names]
+}
+
 func probe(_ what: String, _ request: [String: Any]) -> [String: Any] {
   switch what {
   case "home":
@@ -192,6 +235,91 @@ func probe(_ what: String, _ request: [String: Any]) -> [String: Any] {
     }
     closedir(stream)
     return ["ok": true, "entries": names]
+
+  case "bookmark":
+    // The sanctioned way to hand a sandboxed process a subtree, as opposed to the
+    // SCM_RIGHTS descriptor above which carries operations but not path resolution.
+    // Every step is reported separately: resolving, starting the scope, and what can
+    // be opened before/during/after it, because a grant that only works while the
+    // scope is held is a different capability shape from one that does not.
+    guard let payload = request["data"] as? String,
+      let data = Data(base64Encoded: payload)
+    else {
+      return ["ok": false, "why": "no bookmark data"]
+    }
+    let scoped = request["scoped"] as? Bool ?? true
+    let relative = request["relative"] as? String ?? ""
+    let deep = request["deep"] as? String ?? ""
+    let escape = request["escape"] as? String ?? ""
+
+    var options: URL.BookmarkResolutionOptions = [.withoutUI, .withoutMounting]
+    if scoped { options.insert(.withSecurityScope) }
+    // A document-scoped bookmark resolves only against the document it was made
+    // relative to, so the helper needs that URL as well as the bytes.
+    var relativeURL: URL?
+    if let document = request["document"] as? String, !document.isEmpty {
+      relativeURL = URL(fileURLWithPath: document)
+    }
+
+    var stale = false
+    let resolved: URL
+    do {
+      resolved = try URL(
+        resolvingBookmarkData: data, options: options, relativeTo: relativeURL,
+        bookmarkDataIsStale: &stale)
+    } catch {
+      return [
+        "ok": false, "resolved": false,
+        "error": (error as NSError).localizedDescription,
+        "errorDomain": (error as NSError).domain,
+        "errorCode": (error as NSError).code,
+      ]
+    }
+
+    var result: [String: Any] = [
+      "ok": true, "resolved": true, "stale": stale, "path": resolved.path,
+    ]
+    // Before starting the scope. Taken after resolving, so it cannot say what was
+    // reachable beforehand — that is the host's no-bookmark control. What it does
+    // separate is resolving from the scope call, and measured, resolving is what
+    // grants access.
+    result["beforeStart"] = openReport(resolved.appendingPathComponent(relative).path)
+
+    let started = resolved.startAccessingSecurityScopedResource()
+    result["started"] = started
+
+    result["list"] = listReport(resolved.path)
+    result["insideByPath"] = openReport(resolved.appendingPathComponent(relative).path)
+    if !deep.isEmpty {
+      result["deepByPath"] = openReport(resolved.appendingPathComponent(deep).path)
+    }
+
+    let dirFD = open(resolved.path, O_RDONLY | O_DIRECTORY)
+    if dirFD < 0 {
+      let code = errno
+      result["dirOpen"] = [
+        "ok": false, "errno": Int(code), "errnoText": String(cString: strerror(code)),
+      ]
+    } else {
+      result["dirOpen"] = ["ok": true]
+      result["insideByOpenat"] = openatReport(dirFD, relative)
+      if !deep.isEmpty { result["deepByOpenat"] = openatReport(dirFD, deep) }
+      if !escape.isEmpty { result["escapeByOpenat"] = openatReport(dirFD, escape) }
+      close(dirFD)
+    }
+    if !escape.isEmpty {
+      result["escapeByPath"] = openReport(resolved.appendingPathComponent(escape).path)
+    }
+
+    // `hold` leaves the scope open so the host can SIGKILL this process with the
+    // grant still outstanding — the state a wedged plugin dies in.
+    if request["hold"] as? Bool == true {
+      result["held"] = true
+      return result
+    }
+    if started { resolved.stopAccessingSecurityScopedResource() }
+    result["afterStop"] = openReport(resolved.appendingPathComponent(relative).path)
+    return result
 
   case "jit":
     // Asked after the spin probe has run, so JSC has had every chance to compile.
