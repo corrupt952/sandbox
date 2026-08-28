@@ -165,12 +165,56 @@ let deepFile = nestedDir.appendingPathComponent("deep.txt")
 /// Stands in for the document a document-scoped bookmark would be stored inside.
 let documentFile = workDir.appendingPathComponent("document.txt")
 
+// Document-scope has its own fixtures, in the user's home area rather than the
+// temporary directory. A document-scoped bookmark is documented as pointing at a
+// single file that is not in a system location such as `/private` or `/Library`,
+// and the temporary directory resolves under `/private` — so the first attempt was
+// asking for a folder in a forbidden place, two violations at once, and got one
+// undiagnosed error back.
+//
+// `dirA` and `dirB` are disjoint on purpose. The helper has to reach the document
+// before it can resolve a bookmark relative to it, and it is bootstrapped into
+// `dirA` to do that. A target under `dirA` would then be readable as a side effect
+// of the bootstrap, and the experiment would measure the bootstrap instead.
+let docRoot = FileManager.default.homeDirectoryForCurrentUser
+  .appendingPathComponent("jscore-e8-doc-\(getpid())")
+let docDirA = docRoot.appendingPathComponent("dirA")
+let docDirB = docRoot.appendingPathComponent("dirB")
+let projectDoc = docDirA.appendingPathComponent("project.doc")
+let assetFile = docDirB.appendingPathComponent("asset.txt")
+
 func makeFixtures() throws {
   try FileManager.default.createDirectory(at: nestedDir, withIntermediateDirectories: true)
   try "INSIDE-OK\n".write(to: insideFile, atomically: true, encoding: .utf8)
   try "DEEP-OK\n".write(to: deepFile, atomically: true, encoding: .utf8)
   try "CANARY-VISIBLE\n".write(to: canaryFile, atomically: true, encoding: .utf8)
   try "DOCUMENT\n".write(to: documentFile, atomically: true, encoding: .utf8)
+
+  try FileManager.default.createDirectory(at: docDirA, withIntermediateDirectories: true)
+  try FileManager.default.createDirectory(at: docDirB, withIntermediateDirectories: true)
+  try "PROJECT-DOC\n".write(to: projectDoc, atomically: true, encoding: .utf8)
+  try "ASSET-OK\n".write(to: assetFile, atomically: true, encoding: .utf8)
+}
+
+func removeFixtures() {
+  try? FileManager.default.removeItem(at: workDir)
+  try? FileManager.default.removeItem(at: docRoot)
+}
+
+/// Reads the extended attribute *names* on a file. A document-scoped bookmark is
+/// reported to key itself to an xattr on the document, so their presence or absence
+/// is physical evidence of whether minting got as far as touching the document —
+/// which a bare error code does not say. Names only: writing or copying that
+/// attribute would be depending on a private mechanism, which this run does not do.
+func xattrNames(_ path: String) -> [String] {
+  let size = listxattr(path, nil, 0, 0)
+  guard size > 0 else { return [] }
+  var buffer = [CChar](repeating: 0, count: size)
+  let written = listxattr(path, &buffer, size, 0)
+  guard written > 0 else { return [] }
+  return buffer.prefix(written)
+    .split(separator: 0)
+    .map { String(decoding: $0.map { UInt8(bitPattern: $0) }, as: UTF8.self) }
 }
 
 // MARK: - E1  cold start
@@ -602,14 +646,31 @@ struct MintedBlobs {
   var documentScoped: Data?
   var minterSandboxed = false
 
+  // Document-scope. `bootstrap` is a plain bookmark for dirA, which is how the
+  // helper reaches the document at all — a document-scoped bookmark resolves only
+  // against its document, so a helper that cannot open the document cannot use one,
+  // and that dependency is itself part of the answer.
+  var docDirA = ""
+  var docDirB = ""
+  var projectDoc = ""
+  var assetFile = ""
+  var bootstrap: Data?
+  var documentScopedFile: Data?
+
   var json: [String: Any] {
     var out: [String: Any] = [
       "subtree": subtree, "inside": inside, "deep": deep, "canary": canary,
       "document": document, "minterSandboxed": minterSandboxed,
+      "docDirA": docDirA, "docDirB": docDirB,
+      "projectDoc": projectDoc, "assetFile": assetFile,
     ]
     if let scoped { out["scoped"] = scoped.base64EncodedString() }
     if let plain { out["plain"] = plain.base64EncodedString() }
     if let documentScoped { out["documentScoped"] = documentScoped.base64EncodedString() }
+    if let bootstrap { out["bootstrap"] = bootstrap.base64EncodedString() }
+    if let documentScopedFile {
+      out["documentScopedFile"] = documentScopedFile.base64EncodedString()
+    }
     return out
   }
 
@@ -622,9 +683,17 @@ struct MintedBlobs {
     canary = json["canary"] as? String ?? ""
     document = json["document"] as? String ?? ""
     minterSandboxed = json["minterSandboxed"] as? Bool ?? false
+    docDirA = json["docDirA"] as? String ?? ""
+    docDirB = json["docDirB"] as? String ?? ""
+    projectDoc = json["projectDoc"] as? String ?? ""
+    assetFile = json["assetFile"] as? String ?? ""
     scoped = (json["scoped"] as? String).flatMap { Data(base64Encoded: $0) }
     plain = (json["plain"] as? String).flatMap { Data(base64Encoded: $0) }
     documentScoped = (json["documentScoped"] as? String).flatMap { Data(base64Encoded: $0) }
+    bootstrap = (json["bootstrap"] as? String).flatMap { Data(base64Encoded: $0) }
+    documentScopedFile = (json["documentScopedFile"] as? String).flatMap {
+      Data(base64Encoded: $0)
+    }
   }
 }
 
@@ -748,6 +817,60 @@ func probeBookmark(
   return outcome
 }
 
+/// Walks one variable at a time until a document-scoped bookmark either mints or
+/// every candidate explanation is spent.
+///
+/// The first attempt asked for a directory inside the temporary directory, and the
+/// documented rule is that a document-scoped bookmark points at a single file and
+/// not a folder, and that the file is not somewhere the system owns such as
+/// `/private` or `/Library`. That is two violations producing one error code, which
+/// is exactly the situation where reporting "it failed" settles nothing. Each rung
+/// changes one of them.
+func mintDocumentScoped() -> Data? {
+  // Symlink-resolved on purpose: the temporary directory is reached as /var/... and
+  // lives at /private/var/..., and bookmark creation has been reported to compare a
+  // descriptor against the path it was given.
+  let safeFile = URL(fileURLWithPath: assetFile.path).resolvingSymlinksInPath()
+  let safeDir = URL(fileURLWithPath: docDirB.path).resolvingSymlinksInPath()
+  let safeDoc = URL(fileURLWithPath: projectDoc.path).resolvingSymlinksInPath()
+
+  let ladder: [(name: String, target: URL, document: URL)] = [
+    ("D1  file in the home area, document alongside it", safeFile, safeDoc),
+    (
+      "D1a document in the temporary directory instead", safeFile,
+      documentFile.resolvingSymlinksInPath()
+    ),
+    ("D1a' the same, spelled the unresolved way", safeFile, documentFile),
+    ("D1b directory rather than a file", safeDir, safeDoc),
+    (
+      "D1c target in the temporary directory instead", insideFile.resolvingSymlinksInPath(), safeDoc
+    ),
+    ("D1d the original attempt, reproduced", shareDir, documentFile),
+  ]
+
+  var winner: Data?
+  for rung in ladder {
+    switch makeBookmark(rung.target, options: .withSecurityScope, relativeTo: rung.document) {
+    case .success(let data):
+      note("\(rung.name) → \(data.count) bytes")
+      if winner == nil { winner = data }
+    case .failure(let error):
+      note("\(rung.name) → failed: \(describe(error))")
+    }
+    // Whether the document picked up the attribute a document-scoped bookmark is
+    // reported to key itself with. Absent everywhere means minting never reached
+    // the document, which is a different failure from one that did and was refused.
+    let attributes = xattrNames(rung.document.path).filter { $0.contains("bookmark") }
+    if !attributes.isEmpty {
+      note("    document now carries: \(attributes)")
+    }
+  }
+  if winner == nil {
+    note("→ no rung minted a document-scoped bookmark")
+  }
+  return winner
+}
+
 /// Mints all three variants and resolves them here, in the minting process. That
 /// second half is the control: without it, a helper-side failure could equally mean
 /// the blob was never valid.
@@ -788,6 +911,16 @@ func mintBlobs() -> MintedBlobs {
     note("bookmarkData(.withSecurityScope, relativeTo: document) → failed: " + describe(error))
   }
 
+  blobs.docDirA = docDirA.path
+  blobs.docDirB = docDirB.path
+  blobs.projectDoc = projectDoc.path
+  blobs.assetFile = assetFile.path
+  blobs.documentScopedFile = mintDocumentScoped()
+  switch makeBookmark(docDirA, options: []) {
+  case .success(let data): blobs.bootstrap = data
+  case .failure(let error): note("bootstrap bookmark for dirA → failed: \(describe(error))")
+  }
+
   if let scoped = blobs.scoped {
     note("minter resolving its own app-scoped blob → \(resolveInHost(data: scoped, scoped: true))")
   }
@@ -797,6 +930,83 @@ func mintBlobs() -> MintedBlobs {
         + resolveInHost(data: documentScoped, scoped: true, document: documentFile))
   }
   return blobs
+}
+
+/// Whether a document-scoped bookmark crosses the process boundary that an
+/// app-scoped one does not — and, before that, whether the helper's access to the
+/// document is what gates it.
+///
+/// Run twice: once with the bootstrap that lets the helper open the document, once
+/// without. If the first succeeds and the second does not, the gate is the document,
+/// which is what the mechanism is described to be and what decides whether a
+/// manifest-declared path can stand in for a user's choice.
+func probeDocumentScope(helper: String, blobs: MintedBlobs) throws {
+  guard let blob = blobs.documentScopedFile else {
+    note("→ document-scope: nothing minted, so there is nothing to carry across")
+    return
+  }
+  for withBootstrap in [true, false] {
+    let process = try spawnLoaded(Scripts.summarize, helper: helper)
+    defer { process.shutdown() }
+    var request: [String: Any] = [
+      "op": "probe", "what": "document-bookmark",
+      "data": blob.base64EncodedString(),
+      "target": blobs.assetFile,
+      "document": blobs.projectDoc,
+    ]
+    if withBootstrap, let bootstrap = blobs.bootstrap {
+      request["bootstrap"] = bootstrap.base64EncodedString()
+    }
+    let reply = try process.call(request, deadline: ContinuousClock.now + .seconds(20))
+
+    note("document-scoped, \(withBootstrap ? "document reachable" : "document withheld"):")
+    note("  " + bookmarkLine("open(dirB/asset.txt) before anything", reply["controlTarget"]))
+    note("  " + bookmarkLine("open(dirA/project.doc) before anything", reply["controlDocument"]))
+    if withBootstrap {
+      note(
+        "  bootstrap (plain bookmark for dirA) resolved → \(reply["bootstrapResolved"] ?? "not attempted")"
+      )
+      if let error = reply["bootstrapError"] { note("  bootstrap failed: \(error)") }
+    }
+    note(
+      "  " + bookmarkLine("open(dirA/project.doc) after bootstrap", reply["documentAfterBootstrap"])
+    )
+    note("  " + bookmarkLine("open(dirB/asset.txt) after bootstrap", reply["targetAfterBootstrap"]))
+    if reply["resolved"] as? Bool == true {
+      note("  resolved to \(reply["path"] ?? "?") (stale: \(reply["stale"] ?? "?"))")
+      note("  startAccessingSecurityScopedResource() → \(reply["started"] ?? "?")")
+      note("  " + bookmarkLine("open(target) after resolving", reply["targetAfterResolve"]))
+    } else {
+      note("  resolve failed — \(reply["error"] ?? reply["why"] ?? "?")")
+    }
+
+    let controlHeld =
+      (reply["controlTarget"] as? [String: Any])?["ok"] as? Bool != true
+      && (reply["targetAfterBootstrap"] as? [String: Any])?["ok"] as? Bool != true
+    let opened = (reply["targetAfterResolve"] as? [String: Any])?["ok"] as? Bool ?? false
+    // Whether the condition this run is named after actually held. Saying "even with
+    // the document reachable" when the bootstrap did not make it reachable would
+    // describe a run that never happened.
+    let documentReachable =
+      (reply["documentAfterBootstrap"] as? [String: Any])?["ok"] as? Bool == true
+    if !controlHeld {
+      verdict(nil, "inconclusive — the target was reachable without the document-scoped bookmark")
+    } else if withBootstrap && !documentReachable {
+      verdict(nil, "inconclusive — the bootstrap did not make the document reachable")
+    } else if !withBootstrap && documentReachable {
+      verdict(nil, "inconclusive — the document was reachable without a bootstrap")
+    } else if opened {
+      verdict(
+        nil,
+        "document-scope crosses the process boundary\(withBootstrap ? " when the helper can open the document" : " even with the document withheld")"
+      )
+    } else {
+      verdict(
+        nil,
+        "document-scope does not deliver the target here\(withBootstrap ? " even with the document reachable" : " with the document withheld")"
+      )
+    }
+  }
 }
 
 /// Mints in this process, then probes. The ordinary case, where minter and
@@ -870,15 +1080,7 @@ func probeMintedBlobs(helper: String, blobs: MintedBlobs) throws {
       helper: helper, data: documentData, scoped: true, document: documentFile,
       label: "document-scoped")
   }
-  // Question 3 cannot be settled here and saying so is part of the result: nothing in
-  // this harness goes through NSOpenPanel, so a document-scoped bookmark is being
-  // made relative to a document the helper cannot reach by path either. What the run
-  // can record is the bootstrap problem — the document has to arrive before the
-  // bookmark does — not which scope a plugin host should choose.
-  note(
-    "→ document-scope caveat: no user-selection path exists in this harness, and the"
-      + " helper cannot reach the document by path, so this probe records the bootstrap"
-      + " problem rather than deciding app-scope vs document-scope")
+  try probeDocumentScope(helper: helper, blobs: blobs)
 
   // Not a pass/fail. Either answer leaves the design standing; it decides whether
   // capability granularity is a subtree handed over once or a file at a time.
@@ -1055,12 +1257,12 @@ if onlyBookmarks {
       print("   \(failures.count) check(s) failed:")
       for failure in failures { print("     - \(failure)") }
     }
-    try? FileManager.default.removeItem(at: workDir)
+    removeFixtures()
     exit(failures.isEmpty ? 0 : 1)
   } catch {
     print("")
     print("run aborted: \(error)")
-    try? FileManager.default.removeItem(at: workDir)
+    removeFixtures()
     exit(2)
   }
 }
@@ -1191,11 +1393,11 @@ do {
     print("   \(failures.count) check(s) failed:")
     for failure in failures { print("     - \(failure)") }
   }
-  try? FileManager.default.removeItem(at: workDir)
+  removeFixtures()
   exit(failures.isEmpty ? 0 : 1)
 } catch {
   print("")
   print("run aborted: \(error)")
-  try? FileManager.default.removeItem(at: workDir)
+  removeFixtures()
   exit(2)
 }

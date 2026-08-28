@@ -12,6 +12,13 @@ cd "$(dirname "$0")"
 BUILD_DIR=".build/release"
 IDENTIFIER="dev.zuki.jscore-oop-helper"
 
+# The document-scope fixtures sit directly in the home directory, because a
+# document-scoped bookmark may not point into a system location and the temporary
+# directory resolves under /private. Nothing removes them if a run is interrupted
+# before its cleanup, so clear any stragglers first. Concurrent runs are not a case
+# this POC supports, so a blanket glob is fine.
+rm -rf "${HOME}/jscore-e8-doc-"*
+
 swift build -c release
 
 cp "${BUILD_DIR}/PluginHelper" "${BUILD_DIR}/PluginHelperSandboxed"
@@ -119,12 +126,15 @@ if "${BUILD_DIR}/OOPHostSandboxed" --mint-only "${BLOBS}"; then
     --sandboxed-helper "${PWD}/${BUILD_DIR}/PluginHelperSandboxed" \
     --bookmark-helper "${PWD}/${BUILD_DIR}/PluginHelperBookmark" \
     || echo "   (third pass exited $? — see above)"
-  # The minter left its work directory behind on purpose, so the sibling could find
-  # the subtree the blobs point at.
-  rm -rf "${HOST_CONTAINER}/tmp/jscore-oop-"*
-  rm -f "${BLOBS}"
 else
   echo "   (minting pass exited $? — third pass skipped)"
 fi
+
+# Outside the branch: the minter leaves its fixtures behind on purpose, so the
+# sibling can find what the blobs point at, and it leaves them behind just the same
+# when it fails partway.
+rm -rf "${HOST_CONTAINER}/tmp/jscore-oop-"*
+rm -rf "${HOST_CONTAINER}/jscore-e8-doc-"*
+rm -f "${BLOBS}"
 
 exit $status

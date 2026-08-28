@@ -93,6 +93,13 @@ func readSome(_ fd: Int32, limit: Int = 128) -> String? {
   return String(decoding: buffer[0..<n], as: UTF8.self)
 }
 
+/// The domain and code, not just the localized string: "The file couldn't be
+/// opened." is the same sentence for several unrelated refusals.
+func describeNS(_ error: Error) -> String {
+  let ns = error as NSError
+  return "\(ns.domain) \(ns.code): \(ns.localizedDescription)"
+}
+
 /// All three report the same shape, so the host can print an attempt without caring
 /// whether it went through a path, a descriptor, or a directory stream.
 func openReport(_ path: String) -> [String: Any] {
@@ -319,6 +326,64 @@ func probe(_ what: String, _ request: [String: Any]) -> [String: Any] {
     }
     if started { resolved.stopAccessingSecurityScopedResource() }
     result["afterStop"] = openReport(resolved.appendingPathComponent(relative).path)
+    return result
+
+  case "document-bookmark":
+    // A document-scoped bookmark resolves only against its document, so the helper
+    // needs the document before it can use one — and it cannot reach the document by
+    // path. The bootstrap is a plain bookmark for the directory the document is in,
+    // which makes the dependency explicit rather than assumed.
+    //
+    // The two controls are what keep the result honest. The target must be refused
+    // before anything is resolved, and refused again after the bootstrap, because a
+    // bootstrap that happened to cover the target would produce a success that has
+    // nothing to do with document-scope.
+    let target = request["target"] as? String ?? ""
+    let document = request["document"] as? String ?? ""
+    var result: [String: Any] = [:]
+
+    result["controlTarget"] = openReport(target)
+    result["controlDocument"] = openReport(document)
+
+    if let payload = request["bootstrap"] as? String, let data = Data(base64Encoded: payload) {
+      do {
+        var stale = false
+        let dir = try URL(
+          resolvingBookmarkData: data, options: [.withoutUI, .withoutMounting],
+          relativeTo: nil, bookmarkDataIsStale: &stale)
+        result["bootstrapResolved"] = true
+        result["bootstrapStarted"] = dir.startAccessingSecurityScopedResource()
+      } catch {
+        result["bootstrapResolved"] = false
+        result["bootstrapError"] = describeNS(error)
+      }
+    }
+    result["documentAfterBootstrap"] = openReport(document)
+    // The control that decides whether the last step means anything.
+    result["targetAfterBootstrap"] = openReport(target)
+
+    guard let payload = request["data"] as? String, let data = Data(base64Encoded: payload) else {
+      result["ok"] = false
+      result["why"] = "no document-scoped blob to try"
+      return result
+    }
+    do {
+      var stale = false
+      let resolved = try URL(
+        resolvingBookmarkData: data,
+        options: [.withSecurityScope, .withoutUI, .withoutMounting],
+        relativeTo: URL(fileURLWithPath: document), bookmarkDataIsStale: &stale)
+      result["ok"] = true
+      result["resolved"] = true
+      result["stale"] = stale
+      result["path"] = resolved.path
+      result["started"] = resolved.startAccessingSecurityScopedResource()
+      result["targetAfterResolve"] = openReport(resolved.path)
+    } catch {
+      result["ok"] = false
+      result["resolved"] = false
+      result["error"] = describeNS(error)
+    }
     return result
 
   case "jit":
