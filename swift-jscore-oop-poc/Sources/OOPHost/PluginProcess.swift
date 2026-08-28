@@ -68,10 +68,13 @@ final class PluginProcess {
   /// question is end-to-end latency. Pre-warming needs the boundary: what a pool can
   /// pay in advance is everything up to here, and what a click still costs is
   /// everything after.
-  func waitReady(deadline: ContinuousClock.Instant? = nil) throws {
+  @discardableResult
+  func waitReady(deadline: ContinuousClock.Instant? = nil) throws -> [String: Any] {
     while true {
       let envelope = try channel.receive(deadline: deadline)
-      if envelope.body["op"] as? String == "ready" { return }
+      // The body carries the helper's own clock readings, which is what lets a
+      // launch be split at `main` rather than only at the IPC boundary.
+      if envelope.body["op"] as? String == "ready" { return envelope.body }
     }
   }
 

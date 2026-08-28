@@ -61,6 +61,9 @@ let idleSamples = Int(optionValue("--idle-samples") ?? "") ?? 20
 /// shape of the curve: it should fall as the replacement gets time to boot.
 let prewarmGaps = (optionValue("--prewarm-gaps") ?? "0,5,10,25,50,100")
   .split(separator: ",").compactMap { Int($0) }
+let coldstartRuns = max(2, Int(optionValue("--coldstart-runs") ?? "") ?? 20)
+/// The helper with JavaScriptCore left out, for E10d.
+let stubHelperPath = optionValue("--stub-helper")
 
 let snapshot = Scripts.snapshot(tabs: 50)
 
@@ -89,6 +92,10 @@ func verdict(_ passed: Bool?, _ text: String) {
 
 func fmt(_ value: Double, _ digits: Int = 2) -> String {
   String(format: "%.\(digits)f", value)
+}
+
+func fileSize(_ path: String) -> Int {
+  (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int) ?? 0
 }
 
 func mib(_ bytes: UInt64) -> String {
@@ -275,13 +282,18 @@ func experimentColdStart() throws {
 /// A copy of the helper at a path the kernel has never validated. Same bytes, same
 /// signature, no cached validation behind it — the shape of a user's first plugin
 /// after an install or an update.
-func freshHelperCopy(index: Int) throws -> String {
+func freshCopy(of binary: String, index: Int) throws -> String {
   let staging = workDir.appendingPathComponent("staging")
   try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-  let copy = staging.appendingPathComponent("PluginHelper-\(index)")
+  let copy = staging.appendingPathComponent(
+    "\(URL(fileURLWithPath: binary).lastPathComponent)-\(index)")
   try? FileManager.default.removeItem(at: copy)
-  try FileManager.default.copyItem(at: URL(fileURLWithPath: helperPath), to: copy)
+  try FileManager.default.copyItem(at: URL(fileURLWithPath: binary), to: copy)
   return copy.path
+}
+
+func freshHelperCopy(index: Int) throws -> String {
+  try freshCopy(of: helperPath, index: index)
 }
 
 func experimentColdBinary() throws {
@@ -622,6 +634,272 @@ func experimentDescriptorPassing(helper: String, label: String, expectConfinemen
   if !pathOpened && fdRead {
     verdict(true, "descriptor passing grants access that the path policy denies")
   }
+}
+
+// MARK: - E10  what the cold-binary cost is made of
+
+/// A launch split at `main` rather than at the socket.
+///
+/// E9 could only see the IPC boundary, so the 94 ms an unvalidated binary costs
+/// landed in one bucket called "→ ready". The helper reporting its own clock splits
+/// that bucket in two: everything before its first statement, which is the kernel's
+/// and dyld's work on the image, and everything after, which is the helper's own.
+struct ColdPhases {
+  var preMain = 0.0
+  var vmInit = 0.0
+  var toReady = 0.0
+  var total: Double { preMain + vmInit + toReady }
+}
+
+func measureColdPhases(helper: String) throws -> ColdPhases? {
+  let launched = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+  let process = try PluginProcess(helperPath: helper)
+  defer { process.shutdown() }
+  let ready = try process.waitReady(deadline: ContinuousClock.now + .seconds(30))
+  guard let tMain = ready["tMain"] as? Int,
+    let tVM = ready["tVM"] as? Int,
+    let tReady = ready["tReady"] as? Int
+  else { return nil }
+
+  func millis(_ from: UInt64, _ to: Int) -> Double { Double(Int(to) - Int(from)) / 1_000_000 }
+  var phases = ColdPhases()
+  phases.preMain = millis(launched, tMain)
+  phases.vmInit = Double(tVM - tMain) / 1_000_000
+  phases.toReady = Double(tReady - tVM) / 1_000_000
+  // Two processes reading the same monotonic clock should never produce a negative
+  // interval. One that does means the reading is not comparable, and a discarded
+  // sample is better than a quietly wrong one.
+  guard phases.preMain >= 0, phases.vmInit >= 0, phases.toReady >= 0 else { return nil }
+  return phases
+}
+
+func reportColdPhases(_ label: String, _ runs: [ColdPhases], discarded: Int) {
+  guard !runs.isEmpty else {
+    note("\(label): no usable samples (\(discarded) discarded)")
+    return
+  }
+  note("\(label):")
+  note("  before main (kernel + dyld): \(Percentiles(runs.map { $0.preMain }).line)")
+  note("  JavaScriptCore coming up:    \(Percentiles(runs.map { $0.vmInit }).line)")
+  note("  rest of main → ready:        \(Percentiles(runs.map { $0.toReady }).line)")
+  if discarded > 0 { note("  \(discarded) sample(s) discarded for a negative interval") }
+}
+
+func experimentColdPhases() throws {
+  section("E10a where the launch time goes, split at main")
+  func gather(_ helper: String, count: Int) throws -> ([ColdPhases], Int) {
+    var runs: [ColdPhases] = []
+    var discarded = 0
+    for _ in 0..<count {
+      if let phases = try measureColdPhases(helper: helper) {
+        runs.append(phases)
+      } else {
+        discarded += 1
+      }
+    }
+    return (runs, discarded)
+  }
+
+  let (warm, warmDiscarded) = try gather(helperPath, count: coldstartRuns)
+  reportColdPhases("validated binary", warm, discarded: warmDiscarded)
+
+  var cold: [ColdPhases] = []
+  var coldDiscarded = 0
+  for index in 0..<max(1, coldstartRuns / 2) {
+    let copy = try freshHelperCopy(index: 700 + index)
+    defer { try? FileManager.default.removeItem(at: URL(fileURLWithPath: copy)) }
+    if let phases = try measureColdPhases(helper: copy) {
+      cold.append(phases)
+    } else {
+      coldDiscarded += 1
+    }
+  }
+  reportColdPhases("binary the kernel has never seen", cold, discarded: coldDiscarded)
+
+  guard !warm.isEmpty, !cold.isEmpty else { return }
+  let warmPre = Percentiles(warm.map { $0.preMain }).p50
+  let coldPre = Percentiles(cold.map { $0.preMain }).p50
+  let warmAfter = Percentiles(warm.map { $0.vmInit + $0.toReady }).p50
+  let coldAfter = Percentiles(cold.map { $0.vmInit + $0.toReady }).p50
+  note(
+    "extra cost of an unvalidated binary: \(fmt(coldPre - warmPre)) ms before main,"
+      + " \(fmt(coldAfter - warmAfter)) ms after it")
+  verdict(
+    nil,
+    (coldPre - warmPre) > (coldAfter - warmAfter)
+      ? "the cost is paid before the helper's first statement — nothing the helper"
+        + " does, or links, can move it"
+      : "the cost is paid inside the helper — what it does at startup is worth looking at")
+}
+
+/// What the saving is keyed on. Every arm launches the same bytes with the same
+/// dependencies; only the file's identity changes, so a warm arm names what the
+/// kernel remembered.
+func experimentBinaryIdentity() throws {
+  section("E10b what the validation is remembered against")
+  let staging = workDir.appendingPathComponent("identity")
+  try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+  let origin = URL(fileURLWithPath: helperPath)
+
+  // Optional, not a sentinel: a discarded reading must not become a fast reading.
+  func timed(_ path: String) throws -> Double? {
+    try measureColdPhases(helper: path)?.preMain
+  }
+
+  var copyArm: [Double] = []
+  var linkArm: [Double] = []
+  var cloneArm: [Double] = []
+  var secondArm: [Double] = []
+  var discarded = 0
+  var linkFailed: String?
+  var cloneFailed: String?
+
+  // Round-robin rather than arm by arm: caches and clock speed drift over a run, and
+  // running each arm in a block lets that drift line up with the arm.
+  for index in 0..<max(1, coldstartRuns / 3) {
+    let plain = staging.appendingPathComponent("copy-\(index)")
+    try? FileManager.default.removeItem(at: plain)
+    try FileManager.default.copyItem(at: origin, to: plain)
+    if let sample = try timed(plain.path) { copyArm.append(sample) } else { discarded += 1 }
+    // Same file, second launch. If this is fast, the first launch is what paid.
+    if let sample = try timed(plain.path) { secondArm.append(sample) } else { discarded += 1 }
+    try? FileManager.default.removeItem(at: plain)
+
+    // A new path onto the same inode. Fast means the kernel remembers the file.
+    let link = staging.appendingPathComponent("link-\(index)")
+    try? FileManager.default.removeItem(at: link)
+    do {
+      try FileManager.default.linkItem(at: origin, to: link)
+      if let sample = try timed(link.path) { linkArm.append(sample) } else { discarded += 1 }
+      try? FileManager.default.removeItem(at: link)
+    } catch {
+      linkFailed = describe(error)
+    }
+
+    // A new inode sharing the same blocks. Fast means the kernel remembers the
+    // contents rather than the file.
+    let clone = staging.appendingPathComponent("clone-\(index)")
+    try? FileManager.default.removeItem(at: clone)
+    if clonefile(origin.path, clone.path, 0) == 0 {
+      if let sample = try timed(clone.path) { cloneArm.append(sample) } else { discarded += 1 }
+      try? FileManager.default.removeItem(at: clone)
+    } else {
+      cloneFailed = String(cString: strerror(errno))
+    }
+  }
+
+  note("fresh copy:            \(Percentiles(copyArm).line)")
+  note("same copy, relaunched: \(Percentiles(secondArm).line)")
+  if linkArm.isEmpty {
+    note("hardlink:              unavailable (\(linkFailed ?? "no samples"))")
+  } else {
+    note("hardlink to the original: \(Percentiles(linkArm).line)")
+  }
+  if cloneArm.isEmpty {
+    note("clonefile:             unavailable (\(cloneFailed ?? "no samples"))")
+  } else {
+    note("clonefile of the original: \(Percentiles(cloneArm).line)")
+  }
+  note(
+    "(all figures are time before the helper's first statement, which includes the"
+      + " host's own socketpair and posix_spawn work)")
+  if discarded > 0 { note("\(discarded) sample(s) discarded for a negative interval") }
+
+  let coldMedian = Percentiles(copyArm).p50
+  let warmish = { (samples: [Double]) in
+    !samples.isEmpty && Percentiles(samples).p50 < coldMedian / 2
+  }
+  verdict(
+    nil,
+    warmish(secondArm)
+      ? "relaunching the same file is cheap, so the first launch of a file is what pays"
+      : "relaunching the same file costs the same — the saving is not per-file")
+  if !linkArm.isEmpty {
+    verdict(
+      nil,
+      warmish(linkArm)
+        ? "a hardlink to a validated file launches warm — what is remembered is the"
+          + " file, not the path it was reached by"
+        : "a hardlink to a validated file launches cold — the path matters, which"
+          + " the file's identity alone does not explain")
+  }
+  if !cloneArm.isEmpty {
+    verdict(
+      nil,
+      warmish(cloneArm)
+        ? "a clone launches warm too, so identical contents are enough — an update"
+          + " that changes nothing would not pay again"
+        : "a clone launches cold, so it is the file rather than its contents that is"
+          + " remembered — every new copy pays, however identical")
+  }
+}
+
+/// Whether linking JavaScriptCore is part of what a launch costs. Answers the
+/// dlopen question without writing the dlopen version: if the stub launches like the
+/// helper, there is nothing for deferring JSC to save.
+func experimentStubComparison() throws {
+  guard let stub = stubHelperPath else {
+    note("E10d skipped — no --stub-helper given")
+    return
+  }
+  section("E10d the same helper without JavaScriptCore linked")
+  func gather(_ helper: String) throws -> [ColdPhases] {
+    var runs: [ColdPhases] = []
+    for _ in 0..<max(1, coldstartRuns / 2) {
+      if let phases = try measureColdPhases(helper: helper) { runs.append(phases) }
+    }
+    return runs
+  }
+
+  let stubWarm = try gather(stub)
+  let helperWarm = try gather(helperPath)
+  // Alternated rather than one arm then the other: these are the expensive samples,
+  // seconds apart in a block layout, which is exactly where drift would line up with
+  // the arm. E10b takes the same precaution.
+  var stubCold: [ColdPhases] = []
+  var helperCold: [ColdPhases] = []
+  for index in 0..<max(1, coldstartRuns / 2) {
+    for (binary, sink) in [(stub, 0), (helperPath, 1)] {
+      let path = try freshCopy(of: binary, index: 600 + index)
+      defer { try? FileManager.default.removeItem(at: URL(fileURLWithPath: path)) }
+      guard let phases = try measureColdPhases(helper: path) else { continue }
+      if sink == 0 { stubCold.append(phases) } else { helperCold.append(phases) }
+    }
+  }
+  guard !stubWarm.isEmpty, !helperWarm.isEmpty, !stubCold.isEmpty, !helperCold.isEmpty else {
+    note("not enough usable samples to compare")
+    return
+  }
+
+  note(
+    "before main, validated:   stub \(fmt(Percentiles(stubWarm.map { $0.preMain }).p50)) ms"
+      + " vs helper \(fmt(Percentiles(helperWarm.map { $0.preMain }).p50)) ms")
+  note(
+    "before main, unvalidated: stub \(fmt(Percentiles(stubCold.map { $0.preMain }).p50)) ms"
+      + " vs helper \(fmt(Percentiles(helperCold.map { $0.preMain }).p50)) ms")
+  note(
+    "JavaScriptCore coming up, in the helper: "
+      + "\(fmt(Percentiles(helperWarm.map { $0.vmInit }).p50)) ms validated, "
+      + "\(fmt(Percentiles(helperCold.map { $0.vmInit }).p50)) ms unvalidated")
+
+  let coldDelta =
+    Percentiles(helperCold.map { $0.preMain }).p50
+    - Percentiles(stubCold.map { $0.preMain }).p50
+  // The stub is smaller precisely because JavaScriptCore is absent, so a difference
+  // here has two candidate causes and this pair cannot separate them. A null result
+  // does not have that problem: if the smaller binary is not faster, then neither
+  // its size nor what it links mattered.
+  note(
+    "binary sizes: stub \(fileSize(stub)) bytes, helper \(fileSize(helperPath)) bytes")
+  verdict(
+    nil,
+    abs(coldDelta) < 10
+      ? "linking JavaScriptCore does not change what an unvalidated binary costs"
+        + " (\(fmt(coldDelta)) ms apart, and that is despite the stub being smaller)"
+        + " — deferring it with dlopen would buy nothing here"
+      : "the unvalidated cost differs by \(fmt(coldDelta)) ms, but the stub is also"
+        + " the smaller file, and this pair cannot say which of the two did it — a"
+        + " stub padded back to the helper's size would separate them, and was not built")
 }
 
 // MARK: - E9  pre-warming
@@ -1769,6 +2047,12 @@ do {
   try experimentReuse()
   try experimentIdleCost()
   try experimentPoolStrategies()
+
+  // E10 last: it launches a lot of one-shot binaries, and putting it after E9 keeps
+  // the pool figures out of its way.
+  try experimentColdPhases()
+  try experimentBinaryIdentity()
+  try experimentStubComparison()
 
   section("summary")
   if failures.isEmpty {

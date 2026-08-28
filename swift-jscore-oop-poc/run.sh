@@ -85,6 +85,7 @@ status=0
   --helper "${BUILD_DIR}/PluginHelper" \
   --sandboxed-helper "${BUILD_DIR}/PluginHelperSandboxed" \
   --bookmark-helper "${BUILD_DIR}/PluginHelperBookmark" \
+  --stub-helper "${BUILD_DIR}/StubHelper" \
   --hardened-helper "${BUILD_DIR}/PluginHelperHardened" \
   --jit-helper "${BUILD_DIR}/PluginHelperJIT" \
   "$@" || status=$?

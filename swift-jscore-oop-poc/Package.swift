@@ -23,6 +23,13 @@ let package = Package(
         ])
       ]
     ),
+    // The helper minus JavaScriptCore. E10 launches both and compares, which decides
+    // whether deferring JSC could buy anything before anyone writes that version.
+    .executableTarget(
+      name: "StubHelper",
+      dependencies: ["PluginIPC", "CPluginIPC"],
+      path: "Sources/StubHelper"
+    ),
     .executableTarget(
       name: "OOPHost",
       dependencies: ["PluginIPC", "CPluginIPC"],

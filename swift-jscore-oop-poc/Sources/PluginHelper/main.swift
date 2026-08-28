@@ -4,6 +4,12 @@ import Foundation
 import JavaScriptCore
 import PluginIPC
 
+// First statement in the process, so the gap between this and the host's own reading
+// is everything that happened before any code here ran: the kernel's work on the
+// image, and dyld's. `CLOCK_UPTIME_RAW` is the same monotonic base on both sides, so
+// the two readings can be subtracted across the process boundary.
+let tMain = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+
 // One helper process hosts exactly one plugin. It is single-threaded on purpose:
 // the whole point of the design is that a runaway script wedges *this* process and
 // nothing else, so there is no rescue thread here to paper over that. Recovery is
@@ -15,6 +21,9 @@ let channel = FrameChannel(fd: 3)
 // outside that op, so every other experiment sees the same objects it always did.
 var vm = JSVirtualMachine()!
 var context = JSContext(virtualMachine: vm)!
+/// After the engine exists. What sits between this and `tMain` is JavaScriptCore
+/// coming up, which is the only part of the launch the helper's own code controls.
+let tVM = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
 
 var capturedLogs: [String] = []
 var allowedHosts: Set<String> = []
@@ -486,7 +495,11 @@ func handleTick(_ request: [String: Any]) -> [String: Any] {
 // MARK: - Main loop
 
 installHostBridge()
-try? channel.send(["op": "ready", "pid": Int(getpid())])
+try? channel.send([
+  "op": "ready", "pid": Int(getpid()),
+  "tMain": Int(tMain), "tVM": Int(tVM),
+  "tReady": Int(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)),
+])
 
 while true {
   let envelope: FrameChannel.Envelope
