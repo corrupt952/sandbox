@@ -50,6 +50,17 @@ let coldBinaryRuns = Int(optionValue("--cold-binary-runs") ?? "") ?? 60
 let tickRuns = Int(optionValue("--tick-runs") ?? "") ?? 1000
 let allocMB = Int(optionValue("--alloc-mb") ?? "") ?? 100
 let hangDeadlineMS = Int(optionValue("--hang-deadline-ms") ?? "") ?? 500
+/// At least two: E9a reports its first launch separately, the way E1 does, and one
+/// run would leave nothing behind to report.
+let prewarmRuns = max(2, Int(optionValue("--prewarm-runs") ?? "") ?? 30)
+/// How many helpers the "everything up front" strategy holds.
+let prewarmPool = Int(optionValue("--prewarm-pool") ?? "") ?? 3
+/// 0.5s apart, so the whole idle observation is `idleSamples / 2` seconds.
+let idleSamples = Int(optionValue("--idle-samples") ?? "") ?? 20
+/// Milliseconds between taking the last helper and clicking again. The point is the
+/// shape of the curve: it should fall as the replacement gets time to boot.
+let prewarmGaps = (optionValue("--prewarm-gaps") ?? "0,5,10,25,50,100")
+  .split(separator: ",").compactMap { Int($0) }
 
 let snapshot = Scripts.snapshot(tabs: 50)
 
@@ -261,6 +272,18 @@ func experimentColdStart() throws {
 /// update — and that is where the first spawn was seen to run into the hundreds of
 /// milliseconds. Copying the helper to a fresh path before each spawn reproduces it:
 /// the copy carries the same signature but has no cached validation behind it.
+/// A copy of the helper at a path the kernel has never validated. Same bytes, same
+/// signature, no cached validation behind it — the shape of a user's first plugin
+/// after an install or an update.
+func freshHelperCopy(index: Int) throws -> String {
+  let staging = workDir.appendingPathComponent("staging")
+  try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+  let copy = staging.appendingPathComponent("PluginHelper-\(index)")
+  try? FileManager.default.removeItem(at: copy)
+  try FileManager.default.copyItem(at: URL(fileURLWithPath: helperPath), to: copy)
+  return copy.path
+}
+
 func experimentColdBinary() throws {
   section("E1b cold start with an unvalidated binary copy")
   let staging = workDir.appendingPathComponent("staging")
@@ -599,6 +622,360 @@ func experimentDescriptorPassing(helper: String, label: String, expectConfinemen
   if !pathOpened && fdRead {
     verdict(true, "descriptor passing grants access that the path policy denies")
   }
+}
+
+// MARK: - E9  pre-warming
+
+/// One launch, split at the seams a pool can cut on. Everything up to `ready` is
+/// what pre-warming moves off the click; `load` and the first `tick` are what stays
+/// on it no matter how early the process was started.
+struct LaunchPhases {
+  var spawn = 0.0
+  var ready = 0.0
+  var load = 0.0
+  var tick = 0.0
+  var beforeClick: Double { spawn + ready }
+  var onClick: Double { load + tick }
+  var total: Double { beforeClick + onClick }
+}
+
+func measureLaunch(helper: String, script: String = Scripts.summarize) throws -> LaunchPhases {
+  var phases = LaunchPhases()
+  let deadline = { ContinuousClock.now + .seconds(20) }
+
+  var mark = ContinuousClock.now
+  let process = try PluginProcess(helperPath: helper)
+  process.fetchHandler = stubFetch
+  defer { process.shutdown() }
+  phases.spawn = Timing.millis(ContinuousClock.now - mark)
+
+  mark = ContinuousClock.now
+  try process.waitReady(deadline: deadline())
+  phases.ready = Timing.millis(ContinuousClock.now - mark)
+
+  mark = ContinuousClock.now
+  let loaded = try process.call(["op": "load", "script": script], deadline: deadline())
+  guard loaded["ok"] as? Bool == true else {
+    throw Failure("load failed: \(loaded["error"] ?? loaded)")
+  }
+  phases.load = Timing.millis(ContinuousClock.now - mark)
+
+  mark = ContinuousClock.now
+  let ticked = try process.call(
+    ["op": "tick", "raw": snapshot, "tickNumber": 0], deadline: deadline())
+  guard ticked["ok"] as? Bool == true else {
+    throw Failure("first tick failed: \(ticked["error"] ?? ticked)")
+  }
+  phases.tick = Timing.millis(ContinuousClock.now - mark)
+  return phases
+}
+
+func experimentLaunchPhases() throws {
+  section("E9a launch, split into phases — what pre-warming can and cannot move")
+  var runs: [LaunchPhases] = []
+  for _ in 0..<prewarmRuns { runs.append(try measureLaunch(helper: helperPath)) }
+  // The first launch of a run pays costs no later one does, the same way E1's does.
+  let steady = Array(runs.dropFirst())
+  func line(_ name: String, _ pick: (LaunchPhases) -> Double) {
+    note("\(name): \(Percentiles(steady.map(pick)).line)")
+  }
+  note("first launch of the run: total \(fmt(runs[0].total)) ms (reported separately)")
+  line("posix_spawn  ", { $0.spawn })
+  line("→ ready      ", { $0.ready })
+  line("load         ", { $0.load })
+  line("first tick   ", { $0.tick })
+  let beforeClick = Percentiles(steady.map { $0.beforeClick })
+  let onClick = Percentiles(steady.map { $0.onClick })
+  note("movable off the click (spawn + ready): \(beforeClick.line)")
+  note("stuck on the click (load + tick):      \(onClick.line)")
+  verdict(
+    nil,
+    onClick.p95 <= 16
+      ? "what a click still costs is \(fmt(onClick.p95)) ms at p95 — under one frame,"
+        + " so pre-warming the process is enough to make it imperceptible"
+      : "what a click still costs is \(fmt(onClick.p95)) ms at p95 — over one frame,"
+        + " so pre-warming the process alone does not settle it")
+
+  // The same split against a binary the kernel has never validated, which is where
+  // the hundreds of milliseconds live. Which phase absorbs them decides whether
+  // pre-warming can hide an update as well as a cold start.
+  section("E9a launch phases — binary the kernel has never seen")
+  var fresh: [LaunchPhases] = []
+  for index in 0..<max(1, prewarmRuns / 2) {
+    let copy = try freshHelperCopy(index: 900 + index)
+    defer { try? FileManager.default.removeItem(at: URL(fileURLWithPath: copy)) }
+    fresh.append(try measureLaunch(helper: copy))
+  }
+  note("posix_spawn  : \(Percentiles(fresh.map { $0.spawn }).line)")
+  note("→ ready      : \(Percentiles(fresh.map { $0.ready }).line)")
+  note("load         : \(Percentiles(fresh.map { $0.load }).line)")
+  note("first tick   : \(Percentiles(fresh.map { $0.tick }).line)")
+  let freshBefore = Percentiles(fresh.map { $0.beforeClick })
+  let freshOn = Percentiles(fresh.map { $0.onClick })
+  // The comparison has to be against the warm arm, not between the two phases. Phases
+  // before the click are larger than phases on it even when nothing is cold, so the
+  // question is which phase absorbs the *extra* cost an unvalidated binary brings.
+  let extraBefore = freshBefore.p50 - beforeClick.p50
+  let extraOn = freshOn.p50 - onClick.p50
+  note(
+    "extra cost of an unvalidated binary: \(fmt(extraBefore)) ms before the click,"
+      + " \(fmt(extraOn)) ms on it")
+  verdict(
+    nil,
+    extraBefore > extraOn
+      ? "the unvalidated-binary cost lands before the click, so pre-warming moves it"
+        + " rather than paying it late"
+      : "the unvalidated-binary cost lands on the click itself — pre-warming does not move it")
+}
+
+/// Whether one helper process can serve a second plugin, which is what decides
+/// whether a pool holds reusable processes or single-use ones.
+func experimentReuse() throws {
+  section("E9b reusing a helper for a second plugin")
+  let deadline = { ContinuousClock.now + .seconds(20) }
+
+  func sawMarker(_ reply: [String: Any]) -> (seen: Bool, value: String) {
+    guard let value = reply["value"] as? [String: Any] else { return (false, "<no value>") }
+    let kind = value["sawMarker"] as? String ?? "?"
+    return (kind != "undefined", "\(kind) \(value["markerValue"] as? String ?? "")")
+  }
+
+  // Sensitivity control, first. Claiming a reset cleaned something requires showing
+  // the probe can see it dirty; a probe that reports clean either way proves nothing.
+  let dirty = try { () -> (seen: Bool, value: String) in
+    let process = try spawnLoaded(Scripts.leakA)
+    defer { process.shutdown() }
+    _ = try process.call(["op": "tick", "raw": snapshot, "tickNumber": 0], deadline: deadline())
+    let loaded = try process.call(["op": "load", "script": Scripts.leakB], deadline: deadline())
+    guard loaded["ok"] as? Bool == true else { throw Failure("second load failed") }
+    return sawMarker(
+      try process.call(["op": "tick", "raw": snapshot, "tickNumber": 1], deadline: deadline()))
+  }()
+  note("load(A) → load(B), no reset: B sees the marker as \(dirty.value)")
+  verdict(
+    dirty.seen,
+    "the probe can see contamination at all — without this, a clean result below"
+      + " would mean nothing")
+
+  let cleaned = try { () -> (seen: Bool, value: String, millis: Double) in
+    let process = try spawnLoaded(Scripts.leakA)
+    defer { process.shutdown() }
+    _ = try process.call(["op": "tick", "raw": snapshot, "tickNumber": 0], deadline: deadline())
+    let reset = try process.call(["op": "reset"], deadline: deadline())
+    let loaded = try process.call(["op": "load", "script": Scripts.leakB], deadline: deadline())
+    guard loaded["ok"] as? Bool == true else { throw Failure("load after reset failed") }
+    let seen = sawMarker(
+      try process.call(["op": "tick", "raw": snapshot, "tickNumber": 1], deadline: deadline()))
+    return (seen.seen, seen.value, reset["millis"] as? Double ?? -1)
+  }()
+  note("load(A) → reset → load(B): B sees the marker as \(cleaned.value)")
+  note("reset itself took \(fmt(cleaned.millis)) ms")
+  // Not pass/fail. A reset that does not clean is a finding about how a pool has to
+  // be built, not a broken run — only a blind probe is that.
+  verdict(
+    nil,
+    !cleaned.seen && dirty.seen
+      ? "rebuilding the virtual machine and context clears the previous plugin"
+        + " — a pre-warmed process can be handed to a second plugin"
+      : "the reset leaves the previous plugin visible — a pooled process can serve"
+        + " one plugin and then has to be discarded")
+
+  // Clean by inspection is not the same as clean by accounting. A process that keeps
+  // the previous plugin's pages is still a process that has to be thrown away.
+  let memory = try { () -> (before: UInt64, peak: UInt64, after: UInt64) in
+    let process = try spawnLoaded(Scripts.allocate(mb: allocMB))
+    defer { process.shutdown() }
+    let before = process.footprintBytes ?? 0
+    _ = try process.call(
+      ["op": "tick", "raw": [String: Any](), "tickNumber": 0], deadline: deadline())
+    let peak = process.footprintBytes ?? 0
+    _ = try process.call(["op": "reset"], deadline: deadline())
+    // JSC is under no obligation to return pages the moment the context dies, so
+    // give it a settle window rather than reading the instant after.
+    Thread.sleep(forTimeInterval: 1.5)
+    return (before, peak, process.footprintBytes ?? 0)
+  }()
+  note(
+    "footprint: \(mib(memory.before)) before → \(mib(memory.peak)) after allocating"
+      + " → \(mib(memory.after)) after reset")
+  // Doubles before subtracting: a reset that returns nothing and then costs a little
+  // more for the new virtual machine puts `after` above `peak`, and on UInt64 that
+  // traps — on exactly the result this experiment exists to report.
+  let returned =
+    Double(memory.peak) - Double(memory.after)
+    >= (Double(memory.peak) - Double(memory.before)) * 0.8
+  verdict(
+    nil,
+    returned
+      ? "the reset returns the previous plugin's memory, so reuse is sound on"
+        + " footprint as well as on visibility"
+      : "the reset leaves the previous plugin's memory resident — a reused process"
+        + " carries it, so a pool should hand out processes once and discard them")
+}
+
+/// What a pre-warmed helper costs while it waits. Deliberately sends it nothing: a
+/// probe would wake it, and the question is what an idle one consumes.
+func experimentIdleCost() throws {
+  section("E9c what a waiting helper costs")
+  for (label, script) in [
+    ("blank (never loaded)", nil), ("loaded, never ticked", Scripts.summarize),
+  ]
+    as [(String, String?)]
+  {
+    let process = try PluginProcess(helperPath: helperPath)
+    defer { process.shutdown() }
+    try process.waitReady(deadline: ContinuousClock.now + .seconds(20))
+    if let script {
+      _ = try process.call(
+        ["op": "load", "script": script], deadline: ContinuousClock.now + .seconds(20))
+    }
+    let firstCPU = process.cpuMicros ?? 0
+    var footprints: [UInt64] = []
+    for _ in 0..<idleSamples {
+      Thread.sleep(forTimeInterval: 0.5)
+      footprints.append(process.footprintBytes ?? 0)
+    }
+    let lastCPU = process.cpuMicros ?? 0
+    let cpuDelta = Double(lastCPU) - Double(firstCPU)
+    let drift = Double((footprints.last ?? 0)) - Double(footprints.first ?? 0)
+    note(
+      "\(label): footprint \(mib(footprints.first ?? 0)) → \(mib(footprints.last ?? 0))"
+        + " over \(fmt(Double(idleSamples) * 0.5, 1))s, threads \(process.threadCount),"
+        + " CPU +\(fmt(cpuDelta, 0)) µs")
+    verdict(
+      nil,
+      cpuDelta < 5000 && abs(drift) < 1024 * 1024
+        ? "idle costs memory and nothing else — the count of pre-warmed helpers is a"
+          + " memory decision"
+        : "an idle helper is not free — pre-warming several of them is not just memory")
+  }
+}
+
+/// Two pool shapes, measured as a click rather than as a launch: hold several
+/// helpers ready, or hold one and start its replacement the moment it is taken.
+func experimentPoolStrategies() throws {
+  section("E9d pool strategies — what a click costs")
+  let deadline = { ContinuousClock.now + .seconds(20) }
+
+  /// Takes a ready helper and does what a click does: load the plugin, run it once.
+  func click(_ process: PluginProcess) throws -> Double {
+    let start = ContinuousClock.now
+    let loaded = try process.call(
+      ["op": "load", "script": Scripts.summarize], deadline: deadline())
+    guard loaded["ok"] as? Bool == true else { throw Failure("load failed") }
+    let ticked = try process.call(
+      ["op": "tick", "raw": snapshot, "tickNumber": 0], deadline: deadline())
+    guard ticked["ok"] as? Bool == true else { throw Failure("tick failed") }
+    return Timing.millis(ContinuousClock.now - start)
+  }
+
+  // Strategy A: the whole pool is up and ready before any click arrives.
+  var pooled: [Double] = []
+  var onDemand: [Double] = []
+  // Alternated rather than run in blocks: validation caches and thermal state drift
+  // over a run, and a block layout lets that drift line up with the arm.
+  for _ in 0..<prewarmRuns {
+    var pool: [PluginProcess] = []
+    for _ in 0..<prewarmPool {
+      let process = try PluginProcess(helperPath: helperPath)
+      process.fetchHandler = stubFetch
+      try process.waitReady(deadline: deadline())
+      pool.append(process)
+    }
+    for process in pool { pooled.append(try click(process)) }
+    for process in pool { process.shutdown() }
+
+    for _ in 0..<prewarmPool {
+      let start = ContinuousClock.now
+      let process = try PluginProcess(helperPath: helperPath)
+      process.fetchHandler = stubFetch
+      try process.waitReady(deadline: deadline())
+      _ = try click(process)
+      onDemand.append(Timing.millis(ContinuousClock.now - start))
+      process.shutdown()
+    }
+  }
+  note("click on a pre-warmed helper: \(Percentiles(pooled).line)")
+  note("click that spawns first:      \(Percentiles(onDemand).line)")
+  verdict(
+    nil,
+    "pre-warming takes \(fmt(Percentiles(onDemand).p50 - Percentiles(pooled).p50)) ms"
+      + " off the median click")
+
+  // Strategy B: one helper in hand, its replacement started the instant it is taken.
+  // The gap is how long the second click waits. If the curve is flat the replacement
+  // is not booting in parallel and the rig, not the strategy, is what was measured.
+  section("E9d one in hand, replacement started on use — second click after a gap")
+  for gap in prewarmGaps {
+    var samples: [Double] = []
+    for _ in 0..<prewarmRuns {
+      let first = try PluginProcess(helperPath: helperPath)
+      first.fetchHandler = stubFetch
+      try first.waitReady(deadline: deadline())
+      _ = try click(first)
+      // Replacement starts here, and boots while the host does something else.
+      let replacement = try PluginProcess(helperPath: helperPath)
+      replacement.fetchHandler = stubFetch
+      if gap > 0 { Thread.sleep(forTimeInterval: Double(gap) / 1000) }
+      let start = ContinuousClock.now
+      try replacement.waitReady(deadline: deadline())
+      _ = try click(replacement)
+      samples.append(Timing.millis(ContinuousClock.now - start))
+      first.shutdown()
+      replacement.shutdown()
+    }
+    note("gap \(gap) ms → second click \(Percentiles(samples).line)")
+  }
+  note(
+    "→ a curve that falls as the gap grows is the replacement booting in parallel;"
+      + " a flat one would mean it is not, and the comparison above would be measuring"
+      + " the rig")
+
+  // The same strategy right after an update, when the replacement is a binary the
+  // kernel has not validated. This is where holding one in hand may stop being enough.
+  section("E9d one in hand, but the replacement has never been validated")
+  for gap in [0, 100] {
+    var samples: [Double] = []
+    for index in 0..<max(1, prewarmRuns / 3) {
+      let first = try PluginProcess(helperPath: helperPath)
+      first.fetchHandler = stubFetch
+      try first.waitReady(deadline: deadline())
+      _ = try click(first)
+      let copy = try freshHelperCopy(index: 800 + index)
+      let replacement = try PluginProcess(helperPath: copy)
+      replacement.fetchHandler = stubFetch
+      if gap > 0 { Thread.sleep(forTimeInterval: Double(gap) / 1000) }
+      let start = ContinuousClock.now
+      try replacement.waitReady(deadline: ContinuousClock.now + .seconds(30))
+      _ = try click(replacement)
+      samples.append(Timing.millis(ContinuousClock.now - start))
+      first.shutdown()
+      replacement.shutdown()
+      try? FileManager.default.removeItem(at: URL(fileURLWithPath: copy))
+    }
+    note("gap \(gap) ms → second click \(Percentiles(samples).line)")
+  }
+
+  // What a pool buys on the recovery path E4 measures. One rung, because the 500 ms
+  // hang deadline dominates that path and this cannot move it.
+  section("E9d recovery — replacing a killed helper from the pool")
+  var recovered: [Double] = []
+  for _ in 0..<max(1, prewarmRuns / 3) {
+    let spare = try PluginProcess(helperPath: helperPath)
+    spare.fetchHandler = stubFetch
+    try spare.waitReady(deadline: deadline())
+    let victim = try spawnLoaded(Scripts.summarize)
+    victim.kill()
+    victim.reap()
+    let start = ContinuousClock.now
+    _ = try click(spare)
+    recovered.append(Timing.millis(ContinuousClock.now - start))
+    spare.shutdown()
+  }
+  note("kill → a pooled helper serving: \(Percentiles(recovered).line)")
+  note(
+    "→ compare against E4 above, which spawns on the recovery path. The hang deadline"
+      + " is \(hangDeadlineMS) ms either way, so this is not what a pool is for")
 }
 
 // MARK: - E8  security-scoped bookmarks
@@ -1385,6 +1762,13 @@ do {
       "JSC_useJIT=0 does reach the helper and does disable the JIT — "
         + "so the flat baseline control meant there was no JIT to disable")
   }
+
+  // Last, on purpose: E9 spawns helpers in bursts, and E1's first-spawn figure is
+  // the one number here most sensitive to what ran before it.
+  try experimentLaunchPhases()
+  try experimentReuse()
+  try experimentIdleCost()
+  try experimentPoolStrategies()
 
   section("summary")
   if failures.isEmpty {

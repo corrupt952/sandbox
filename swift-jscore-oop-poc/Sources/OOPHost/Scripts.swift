@@ -51,6 +51,24 @@ enum Scripts {
     globalThis.transform = (raw, ctx) => 0;
     """
 
+  /// Leaves something behind on purpose. Reusing one helper process for a second
+  /// plugin is only safe if the second cannot see this.
+  static let leakA = """
+    globalThis.leakMarker = "PLUGIN-A";
+    globalThis.transform = (raw, ctx) => ({ who: "A" });
+    """
+
+  /// Reports what it can see of the previous plugin. Run without a reset first: if
+  /// this comes back clean, the probe is blind and nothing it says afterwards about
+  /// a reset working means anything.
+  static let leakB = """
+    globalThis.transform = (raw, ctx) => ({
+      who: "B",
+      sawMarker: typeof globalThis.leakMarker,
+      markerValue: globalThis.leakMarker === undefined ? "" : globalThis.leakMarker,
+    });
+    """
+
   /// The case the whole design exists for.
   static let hang = """
     globalThis.transform = (raw, ctx) => { while (true) {} };

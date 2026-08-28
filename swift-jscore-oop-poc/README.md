@@ -17,6 +17,7 @@ The companion to [swift-jscore-plugin-sandbox](../swift-jscore-plugin-sandbox/),
 | E6 | Does memory land on the helper's pid? | footprint follows | **+100.9 MiB** for a 100 MB JS allocation |
 | E7 | Does descriptor passing survive the sandbox? | not a rejection criterion | open files yes, directory listing yes, **`openat` beneath a directory no** |
 | E8 | Can a bookmark hand the helper a subtree? | not a rejection criterion | yes, but only the **plain** bookmark — app-scope does not cross the process boundary, and document-scope crosses **one file at a time** |
+| E9 | What does pre-warming buy? | report the split | **nothing at steady state** — a whole launch is 5 ms. It buys the 94 ms an unvalidated binary costs, and a pooled helper is single-use |
 
 Measured on macOS 26.6 (25G72), Apple Silicon, release build, 30 spawns and 1000 ticks per figure. Reproduce with `./run.sh`; the numbers move by a few percent between runs.
 
@@ -94,6 +95,26 @@ So the third pass stops making them parent and child. A bookmark is inert bytes,
 
 Only public Foundation API is involved. `sandbox_extension_issue_file` and `sandbox_extension_consume` are not called anywhere, so nothing above depends on a private mechanism.
 
+## Finding 4: pre-warming is for updates, and a pre-warmed helper is single-use
+
+E1 said the first spawn after an update needs pre-warming. E9 splits a launch at the seams a pool can cut on — `posix_spawn`, waiting for the helper's `ready`, `load`, and the first `tick` — to see what pre-warming actually moves.
+
+At steady state it moves almost nothing worth moving. Spawning costs 0.19 ms, the helper is ready 3.01 ms later, `load` is 0.12 ms and the first `tick` 1.54 ms, so a click that spawns its own helper costs 4.98 ms at the median and a click on a pre-warmed one costs 1.64 ms. Pre-warming takes 3.34 ms off. Both numbers are well inside a 16 ms frame, so at steady state this is not a user-visible difference and a pool cannot be justified by it.
+
+Updates are not the only case pre-warming moves, though, and E9 measures only one of them. E1's first spawn of a run costs 335 ms here against 6.5 ms for every spawn after it, on a binary the kernel has already validated — the session's first launch pays for dyld and for faulting JavaScriptCore in, and that is a cost a pre-warm at app start would move exactly the same way. E9 cannot see it: it runs after E1 through E8, so everything it measures is already warm. The 6.72 ms it reports as its own first launch is a first launch of the section, not of the process.
+
+Where it pays is the case E1b found. Against a binary the kernel has never validated, waiting for `ready` goes from 3.01 ms to 96.75 ms, and the split is 94.18 ms of the extra landing before the click against 2.06 ms on it. The click side is not quite untouched — the first `tick` itself doubles, 1.54 ms to 3.41 ms — but at that size it changes nothing. So pre-warming does not shorten the cost, it relocates it, which is the whole point: paid at app start it is invisible, paid on a click it is not.
+
+That also decides the pool's shape, and the two strategies come apart only after an update. Holding one helper and starting its replacement the moment it is taken is enough at steady state: a second click 5 ms later costs 1.73 ms, so the replacement boots in parallel and 5 ms is already enough of a head start. Do the same with a replacement the kernel has not validated and a back-to-back second click costs 96 ms, with 100 ms of head start bringing the median back to 2.49 ms while the tail still reaches 71 ms — that last figure is one sample out of ten, so read it as "the tail is still there", not as a percentile. One in hand is enough until an update, and then it is not.
+
+A spare also shortens recovery, though not by enough to matter. Replacing a killed helper from the pool serves 1.86 ms after the kill against the 7.02 ms E4 measured in the same run with the spawn on that path. Both disappear behind the 500 ms it takes to decide the plugin is hung, so recovery is not a reason to keep a pool.
+
+An idle helper costs 4.0 MiB and 8 µs of CPU over ten seconds, with two threads and a flat footprint, so how many to hold is purely a memory question. What that ten-second window does not answer is what an hour looks like — whether the pages stay resident under memory pressure, or whether a process with no window becomes eligible for App Nap, is untested here.
+
+The last question is whether a pre-warmed helper can serve any plugin or only the one it was warmed for, and the answer is neither quite. Loading a second plugin into a helper that already ran one lets the second see what the first left in `globalThis` — the probe reports the marker verbatim, which is what makes the rest of this measurable rather than assumed. Rebuilding the virtual machine and the context clears that in 0.35 ms. But the memory does not come back: after allocating 100 MB and resetting, the footprint sits at 105.6 MiB against 105.1 before, so the reset returns visibility and not pages. A pooled helper is therefore blank stock — hand it out once, and when the plugin is done, discard the process rather than recycling it. Whether JavaScriptCore would release those pages given longer than the 1.5 s settle window this waits is untested.
+
+One number in this section is unexplained. A second click gets slower the longer the replacement has been sitting: 1.73 ms at a 5 ms gap, then 1.91, 2.35, 2.63, and 2.73 ms at 100 ms. It is monotonic across four points rather than noise-shaped, and it is about a millisecond in total, so it changes nothing here — but a pre-warmed helper being slightly slower the longer it waits is the opposite of the assumption. It is equally consistent with the measuring host idling through the gap rather than the helper aging, since the gap is a `Thread.sleep` on this side; a busy-wait in place of the sleep would separate the two, and was not run.
+
 ## How it works
 
 Three targets. `PluginHelper` is one process per plugin holding one `JSVirtualMachine` + `JSContext`, single-threaded on purpose — the point is that a runaway script wedges only itself, so there is no rescue thread to paper over it. `OOPHost` spawns helpers and runs the experiments. `CPluginIPC` is a small C shim, because the `CMSG_*` macros needed for descriptor passing are C macros and reimplementing Darwin's cmsg alignment in Swift is a worse idea than keeping a C file.
@@ -121,6 +142,14 @@ The fix is to link one into the binary rather than wrap the helper in an `.app`:
 ## Known gaps
 
 Everything is ad-hoc signed. The variants are genuinely confined and the flags verify (`flags=0x10002(adhoc,runtime)`), but a Developer ID signed, notarized build was not tested. Notarization requires the hardened runtime, which the `allow-jit` variant already uses, so nothing here suggests a problem — it simply was not tried.
+
+E9's cold-binary figures came in lower than E1b's. The unvalidated-binary launches here land at 96.75 ms p50 where the README's headline figure is 164–224 ms, and E1b in the same run reported 101.64 ms p95 at n=5. The E9 numbers are internally consistent and the phase split they support does not depend on the absolute value, but the headline range came from two n=60 runs and this did not reproduce it — the machine or its caches were in a different state, and which is unmeasured.
+
+The session's very first spawn is unmeasured by E9. E1 reports it — 335 ms here against 6.5 ms warm — but E9 runs after everything else and never sees a cold process, so how much of that a pre-warm at app start would actually recover is inferred from E1's split rather than measured directly.
+
+E9's idle observation is ten seconds. Memory pressure, page eviction and App Nap all act on longer horizons, and whether a windowless helper process is even eligible for App Nap was not checked.
+
+E9's reset was given 1.5 s to return memory. That the footprint had not dropped by then does not establish that JavaScriptCore never returns those pages, only that it had not yet.
 
 E8's exit code does not reflect E8. Its verdicts are recorded but never counted as failures, because neither answer rejects the design — so a configuration that could not run at all is still reported under `all checks passed`. The second pass in particular prints `could not run: peer closed the socket` for two of its three configurations and the summary stays green. Read the section, not the summary.
 
@@ -150,7 +179,7 @@ macOS 26+ on Apple Silicon. No provisioning profile — `run.sh` ad-hoc signs th
 
 ```sh
 ./run.sh                                       # full run: 30 spawns, 1000 ticks
-./run.sh --cold-runs 5 --tick-runs 100         # quick pass
+./run.sh --cold-runs 5 --tick-runs 100 --prewarm-runs 5 --idle-samples 4   # quick pass
 ./run.sh --cold-binary-runs 30                 # more samples for the cold-binary case
 ```
 

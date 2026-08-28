@@ -19,6 +19,11 @@ ssize_t ipc_recv(int sock, void *buf, size_t len, int *out_fd);
 /// `ri_phys_footprint` from proc_pid_rusage(RUSAGE_INFO_V4). Returns 0 on success.
 int ipc_phys_footprint(pid_t pid, uint64_t *out_footprint);
 
+/// User + system CPU time in microseconds, from the same rusage call. An idle
+/// pre-warmed helper is supposed to be blocked in read(), and a CPU delta of zero
+/// over an observation window is what says so. Returns 0 on success.
+int ipc_cpu_micros(pid_t pid, uint64_t *out_micros);
+
 /// `*out_errno` receives errno either way — under App Sandbox the errno is itself
 /// the observation.
 int ipc_child_count(pid_t pid, int *out_errno);

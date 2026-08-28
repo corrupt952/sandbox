@@ -11,8 +11,10 @@ import PluginIPC
 
 let channel = FrameChannel(fd: 3)
 
-let vm = JSVirtualMachine()!
-let context = JSContext(virtualMachine: vm)!
+// `var` rather than `let` so `reset` can replace them. Nothing reassigns these
+// outside that op, so every other experiment sees the same objects it always did.
+var vm = JSVirtualMachine()!
+var context = JSContext(virtualMachine: vm)!
 
 var capturedLogs: [String] = []
 var allowedHosts: Set<String> = []
@@ -511,6 +513,21 @@ while true {
     statePermission = request["state"] as? Bool ?? false
     installHostBridge()
     reply = ["ok": true]
+  case "reset":
+    // "Back to the state a freshly spawned helper is in" is the whole contract:
+    // reusing a pre-warmed process for a second plugin is only sound if nothing of
+    // the first one survives. Replacing the context alone would leave the virtual
+    // machine — and whatever the previous plugin put in it — in place.
+    let started = ContinuousClock.now
+    vm = JSVirtualMachine()!
+    context = JSContext(virtualMachine: vm)!
+    capturedLogs.removeAll()
+    stateStore.removeAll()
+    allowedHosts.removeAll()
+    statePermission = false
+    scriptLoaded = false
+    installHostBridge()
+    reply = ["ok": true, "millis": Timing.millis(ContinuousClock.now - started)]
   case "load":
     reply = handleLoad(request)
   case "tick":

@@ -102,6 +102,20 @@ int ipc_phys_footprint(pid_t pid, uint64_t *out_footprint) {
   return 0;
 }
 
+int ipc_cpu_micros(pid_t pid, uint64_t *out_micros) {
+  struct rusage_info_v4 info;
+  memset(&info, 0, sizeof(info));
+  int rc = proc_pid_rusage(pid, RUSAGE_INFO_V4, (rusage_info_t *)&info);
+  if (rc != 0) {
+    return rc;
+  }
+  if (out_micros) {
+    // Both counters are nanoseconds; an idle helper should move neither.
+    *out_micros = (info.ri_user_time + info.ri_system_time) / 1000;
+  }
+  return 0;
+}
+
 int ipc_child_count(pid_t pid, int *out_errno) {
   errno = 0;
   int rc = proc_listchildpids(pid, NULL, 0);

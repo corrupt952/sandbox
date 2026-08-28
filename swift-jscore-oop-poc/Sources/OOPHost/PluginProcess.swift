@@ -62,6 +62,19 @@ final class PluginProcess {
 
   // MARK: - Requests
 
+  /// Consumes the `ready` frame the helper sends before entering its loop.
+  ///
+  /// Every other experiment lets `call` swallow it, which is fine when the only
+  /// question is end-to-end latency. Pre-warming needs the boundary: what a pool can
+  /// pay in advance is everything up to here, and what a click still costs is
+  /// everything after.
+  func waitReady(deadline: ContinuousClock.Instant? = nil) throws {
+    while true {
+      let envelope = try channel.receive(deadline: deadline)
+      if envelope.body["op"] as? String == "ready" { return }
+    }
+  }
+
   /// Sends one request and pumps the socket until its reply arrives, servicing any
   /// reverse RPC the helper raises in the meantime.
   @discardableResult
@@ -133,5 +146,12 @@ final class PluginProcess {
   /// -1 once the task is gone.
   var threadCount: Int32 {
     ipc_thread_count(pid)
+  }
+
+  /// nil once the process is gone. Flat across an observation window is what says a
+  /// pre-warmed helper is genuinely idle rather than quietly busy.
+  var cpuMicros: UInt64? {
+    var micros: UInt64 = 0
+    return ipc_cpu_micros(pid, &micros) == 0 ? micros : nil
   }
 }
