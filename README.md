@@ -45,6 +45,7 @@ Each directory is self-contained; see its README for details and setup.
 | [swift-dave-poc](swift-dave-poc/) | Swift wrapper around Discord's libdave (DAVE E2EE protocol) C API |
 | [swift-grain-filter](swift-grain-filter/) | Menu-bar film-grain + glare-dim overlay with no Screen Recording permission |
 | [swift-io-model-lab](swift-io-model-lab/) | From-scratch echo server comparing blocking/threaded/non-blocking IO, with a live timeline dashboard |
+| [swift-jscore-oop-poc](swift-jscore-oop-poc/) | Running the same JavaScriptCore plugins out-of-process so a `while(true)` can be killed — and finding the JIT hinges on an entitlement worth 12×, while a passed descriptor carries operations rather than a subtree |
 | [swift-jscore-plugin-sandbox](swift-jscore-plugin-sandbox/) | Sandboxed plugin scripts via JavaScriptCore: VM isolation + permission-gated host bridge |
 | [swift-kana-kanji-poc](swift-kana-kanji-poc/) | A kana-kanji conversion engine with no part-of-speech system — can a dumb engine be good enough if the dictionaries are good? |
 | [swift-libghostty-workspace-poc](swift-libghostty-workspace-poc/) | Concept verification: libghostty embedded directly, plus a thin multi-workspace layer, no relay layer in between |

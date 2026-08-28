@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Same containment as Sandbox.entitlements, plus permission to map executable
+	     pages. On Apple Silicon this is what decides whether JavaScriptCore compiles
+	     at all: without it JSC finds it cannot allocate executable memory and runs
+	     interpreted, which the VM region tags show directly. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+</dict>
+</plist>
