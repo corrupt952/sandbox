@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Linked into __TEXT,__info_plist. App Sandbox names the helper's container
+	     after CFBundleIdentifier read out of the code signature, so a bare Mach-O
+	     without this section dies in _libsecinit_appsandbox before main() with
+	     "Unable to get bundle identifier for container id". Embedding the section
+	     is what lets the helper stay a plain executable instead of an .app. -->
+	<key>CFBundleIdentifier</key>
+	<string>dev.zuki.jscore-oop-hostile</string>
+	<key>CFBundleName</key>
+	<string>HostileHelper</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+</dict>
+</plist>

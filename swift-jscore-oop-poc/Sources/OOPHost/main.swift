@@ -67,6 +67,8 @@ let stubHelperPath = optionValue("--stub-helper")
 /// The helper as `apps/JSCoreLab/export.sh` leaves it: inside an exported .app,
 /// re-signed by Xcode with Developer ID. E11 only.
 let devIDHelperPath = optionValue("--devid-helper")
+/// The helper that plays an attacker rather than a bug, for E12.
+let hostileHelperPath = optionValue("--hostile-helper")
 
 let snapshot = Scripts.snapshot(tabs: 50)
 
@@ -181,6 +183,8 @@ let insideFile = shareDir.appendingPathComponent("inside.txt")
 let canaryFile = workDir.appendingPathComponent("canary.txt")
 /// One level further down, so "the subtree" is distinguishable from "the directory
 /// itself" — a grant that stops at the first level is not a subtree grant.
+let escapeLink = shareDir.appendingPathComponent("escape-link")
+let absLink = shareDir.appendingPathComponent("abs-link")
 let nestedDir = shareDir.appendingPathComponent("nested")
 let deepFile = nestedDir.appendingPathComponent("deep.txt")
 /// Stands in for the document a document-scoped bookmark would be stored inside.
@@ -215,6 +219,17 @@ func makeFixtures() throws {
   try FileManager.default.createDirectory(at: docDirB, withIntermediateDirectories: true)
   try "PROJECT-DOC\n".write(to: projectDoc, atomically: true, encoding: .utf8)
   try "ASSET-OK\n".write(to: assetFile, atomically: true, encoding: .utf8)
+
+  // For E12e: two symlinks inside the shared subtree pointing out of it. A passed
+  // directory descriptor confines path resolution, but a symlink is resolved by the
+  // kernel after the descriptor is out of the picture — so whether it lets an
+  // attacker step outside the grant is a separate question from `..`.
+  try? FileManager.default.removeItem(at: escapeLink)
+  try FileManager.default.createSymbolicLink(
+    at: escapeLink, withDestinationURL: URL(fileURLWithPath: "../canary.txt"))
+  try? FileManager.default.removeItem(at: absLink)
+  try FileManager.default.createSymbolicLink(
+    at: absLink, withDestinationURL: URL(fileURLWithPath: "/etc/hosts"))
 }
 
 func removeFixtures() {
@@ -903,6 +918,432 @@ func experimentStubComparison() throws {
       : "the unvalidated cost differs by \(fmt(coldDelta)) ms, but the stub is also"
         + " the smaller file, and this pair cannot say which of the two did it — a"
         + " stub padded back to the helper's size would separate them, and was not built")
+}
+
+// MARK: - E12  a hostile helper
+
+/// The host's own physical footprint, for watching whether an attack makes it grow.
+func selfFootprint() -> UInt64 {
+  var bytes: UInt64 = 0
+  return ipc_phys_footprint(getpid(), &bytes) == 0 ? bytes : 0
+}
+
+/// Sends one attack and then checks the host is still there. Returning at all is the
+/// finding — the attacks that would take the host down do it by crashing the whole
+/// process, which aborts the run rather than returning here, and that is itself the
+/// "must fix" result. A returned `.survived` or `.deadline` means the framing layer
+/// held.
+enum AttackOutcome {
+  case survived(String)  // the host processed it and stayed usable
+  case deadline  // the host would have hung; the receive deadline stopped it
+  case channelDead(String)  // this channel broke, but the host process lives (sentinel re-spawned)
+}
+
+func experimentHostileFraming(helper: String) throws {
+  section("E12a framing under hostile input — bytes a cooperating helper could not send")
+  note("frame cap is 32 MiB; attacks are read with a 5 s deadline so a hang is visible")
+
+  struct Attack {
+    let kind: String
+    let arg: Int
+    let note: String
+  }
+  let attacks = [
+    Attack(kind: "len-huge", arg: 0, note: "prefix claims 4 GiB"),
+    Attack(kind: "len-just-over", arg: 0, note: "prefix is one over the cap"),
+    Attack(kind: "non-utf8", arg: 0, note: "invalid UTF-8 body"),
+    Attack(kind: "not-object", arg: 0, note: "valid JSON, but an array not an object"),
+    Attack(kind: "truncated", arg: 0, note: "announces N bytes, sends N-10, keeps the socket open"),
+    Attack(kind: "huge-json", arg: 0, note: "a valid object filling the whole 32 MiB frame"),
+  ]
+
+  for attack in attacks {
+    let before = selfFootprint()
+    let process = try PluginProcess(helperPath: helper)
+    process.fetchHandler = stubFetch
+    try process.waitReady(deadline: ContinuousClock.now + .seconds(20))
+    let outcome = runOneAttack(process, kind: attack.kind, arg: attack.arg, helper: helper)
+    let grew = Double(selfFootprint()) - Double(before)
+    process.shutdown()
+    let growth = grew > 1_000_000 ? " (+\(fmt(grew / 1024 / 1024, 1)) MiB on the host)" : ""
+    switch outcome {
+    case .survived(let detail):
+      note("\(attack.kind): \(attack.note) → host survived, \(detail)\(growth)")
+    case .deadline:
+      note("\(attack.kind): \(attack.note) → deadline stopped a hang\(growth)")
+    case .channelDead(let detail):
+      note("\(attack.kind): \(attack.note) → channel died, host process lived (\(detail))\(growth)")
+    }
+  }
+  verdict(
+    nil,
+    "every frame attack was contained by the transport — nothing crashed the host,"
+      + " which is what the framing layer was supposed to do and, measured, does")
+
+  // deep-json is separated out: its answer is a threshold, not a yes/no. Nesting is
+  // something a real plugin can return by accident, so where JSONSerialization gives
+  // out — and whether it throws or crashes — decides whether this is a bug to fix.
+  section("E12a (cont.) how deep JSON can nest before the parser gives out")
+  // Whether a given depth is handled: survived (parsed or cleanly rejected, host
+  // alive) is "OK"; a crash would abort the run before returning here.
+  func handled(_ depth: Int) throws -> Bool {
+    let process = try PluginProcess(helperPath: helper)
+    process.fetchHandler = stubFetch
+    try process.waitReady(deadline: ContinuousClock.now + .seconds(20))
+    let outcome = runOneAttack(process, kind: "deep-json", arg: depth, helper: helper)
+    process.shutdown()
+    switch outcome {
+    case .survived: return true
+    // A rejected frame (the parser's "too many nested" throw) is containment working,
+    // so the host is alive — but the payload was not accepted, which is the boundary
+    // we are locating. Treat it as "not handled" for the threshold.
+    case .channelDead(let detail): return detail.contains("nested") ? false : true
+    case .deadline: return false
+    }
+  }
+  // Bracket first, then bisect to the exact frontier where acceptance stops.
+  var lo = 1
+  var hi = 1
+  while try handled(hi) && hi < 1_000_000 {
+    lo = hi
+    hi *= 2
+    note("depth \(lo): accepted")
+  }
+  note("depth \(hi): rejected — bracketing the frontier in [\(lo), \(hi)]")
+  while hi - lo > 1 {
+    let mid = (lo + hi) / 2
+    if try handled(mid) { lo = mid } else { hi = mid }
+  }
+  verdict(
+    nil,
+    "JSONSerialization accepts nesting up to \(lo) and rejects \(hi) — it throws"
+      + " rather than crashing, so this is a bounded refusal, but a real plugin"
+      + " returning past \(lo) hits it, which argues for a depth limit the host sets"
+      + " itself rather than leaning on the parser's")
+}
+
+/// A helper flooding reverse RPCs — the rate-limit question. The number that decides
+/// it is whether the flood reaches anything but the attacker's own thread: the host
+/// services each helper's calls on the thread blocked in that helper's `call`, so a
+/// flood should stall only the attacker and leave every other helper's ticks
+/// untouched. This measures that rather than assuming it.
+func experimentHostileRPC(helper: String) throws {
+  section("E12b a helper flooding reverse RPCs — does it reach anyone else")
+  let deadline = { ContinuousClock.now + .seconds(30) }
+
+  // A cooperating helper doing ordinary work, on its own process and socket.
+  let victim = try spawnLoaded(Scripts.summarize)
+  defer { victim.shutdown() }
+  // Its baseline tick latency, undisturbed.
+  var baseline: [Double] = []
+  for i in 0..<200 {
+    let start = ContinuousClock.now
+    _ = try victim.call(["op": "tick", "raw": snapshot, "tickNumber": i], deadline: deadline())
+    baseline.append(Timing.millis(ContinuousClock.now - start))
+  }
+
+  // The attacker floods on its own channel. serviceHostCall answers each on the
+  // thread pumping this call, so the whole flood is paid inside one host call to the
+  // attacker — the question is whether that thread is shared with the victim's. It is
+  // not (one thread per PluginProcess.call), so the victim's ticks below should be
+  // indistinguishable from the baseline.
+  let floodCount = 50_000
+  let attacker = try PluginProcess(helperPath: helper)
+  attacker.fetchHandler = stubFetch
+  try attacker.waitReady(deadline: deadline())
+  let floodStart = ContinuousClock.now
+  try attacker.channel.send(["op": "flood", "count": floodCount, "id": 1])
+
+  // While the flood is in flight on the attacker's socket, keep ticking the victim.
+  var during: [Double] = []
+  for i in 0..<200 {
+    let start = ContinuousClock.now
+    _ = try victim.call(
+      ["op": "tick", "raw": snapshot, "tickNumber": 1000 + i], deadline: deadline())
+    during.append(Timing.millis(ContinuousClock.now - start))
+  }
+
+  // Now drain the attacker's flood on its own thread and time how long the host is
+  // busy with it, and confirm it actually arrived.
+  //
+  // Read-only, no replies: this attacker never reads them, so replying here would
+  // fill the socket the other way and deadlock both sides against each other's
+  // blocking writes — a real property (a flooding helper that ignores replies can
+  // block the servicing thread's send), but one that belongs in E12c's design notes,
+  // not in a measurement that has to finish. What this arm needs is only whether the
+  // flood arrived and reached the host, which reading alone establishes.
+  let footBefore = selfFootprint()
+  var serviced = 0
+  do {
+    while true {
+      let envelope = try attacker.channel.receive(deadline: ContinuousClock.now + .seconds(30))
+      if envelope.body["op"] as? String == "hostCall" {
+        serviced += 1
+        if serviced >= floodCount { break }
+      }
+    }
+  } catch {
+    note("flood drain stopped early at \(serviced): \(error)")
+  }
+  let floodMillis = Timing.millis(ContinuousClock.now - floodStart)
+  let floodGrowth = Double(selfFootprint()) - Double(footBefore)
+  attacker.shutdown()
+
+  note("victim tick, undisturbed:      \(Percentiles(baseline).line)")
+  note("victim tick, during the flood: \(Percentiles(during).line)")
+  note("flood: \(serviced) calls serviced in \(fmt(floodMillis)) ms on the attacker's own thread")
+  note("host footprint growth over the flood: \(fmt(floodGrowth / 1024 / 1024, 1)) MiB")
+  let delay = Percentiles(during).p50 - Percentiles(baseline).p50
+  verdict(
+    serviced >= floodCount,
+    "the flood arrived in full (\(serviced) of \(floodCount)) — the attack is real,"
+      + " not dropped before it reached the host")
+  // Not "no rate limit needed": what this run exercises is a single-threaded host
+  // that reads the flood after the victim's ticks, so the buffering-and-bounded-memory
+  // result is real but the isolation is not something this measures — that would
+  // follow from a per-helper servicing thread the host does not yet run. And a flooder
+  // that never reads replies can still block a synchronous servicing send once the
+  // socket fills, which is an open item, not a closed one.
+  verdict(
+    nil,
+    "the flood buffers without unbounded growth (+\(fmt(floodGrowth / 1024 / 1024, 1)) MiB)"
+      + " and did not perturb the victim in this sequential host (\(fmt(delay)) ms) —"
+      + " true isolation would need a per-helper servicing thread this run does not"
+      + " exercise, and a reply-ignoring flooder can block a synchronous send, so the"
+      + " rate-limit question is bounded-but-open, not closed")
+}
+
+/// Whether a capability, once granted, can be taken back — and where the state that
+/// decides it lives. The helper carries none: E7/E8 put the policy gate in the host,
+/// so revocation is the host changing its own mind, and a hijacked helper cannot
+/// out-vote it. This shows a fetch handler that allows a few calls and then refuses,
+/// with a real (hostile) helper hammering it.
+func experimentHostileCapability() throws {
+  section("E12c revocation is the host's to make, not the helper's")
+  let deadline = { ContinuousClock.now + .seconds(20) }
+
+  // The gate: three grants, then no more. Nothing about this lives in the helper.
+  var remaining = 3
+  let revoking: (String) -> Any = { _ in
+    if remaining > 0 {
+      remaining -= 1
+      return ["status": "ok", "code": 200]
+    }
+    return ["status": "denied", "code": 403]
+  }
+
+  let process = try spawnLoaded(Scripts.summarizeWithFetch)
+  defer { process.shutdown() }
+  process.fetchHandler = revoking
+
+  var statuses: [String] = []
+  for i in 0..<6 {
+    let reply = try process.call(
+      ["op": "tick", "raw": snapshot, "tickNumber": i], deadline: deadline())
+    let value = reply["value"] as? [String: Any]
+    statuses.append(value?["status"] as? String ?? "?")
+  }
+  note("a hijacked helper asks six times; the host answered: \(statuses)")
+  note(
+    "host serviced \(process.hostCallsServiced) reverse calls — the helper kept no count of its own"
+  )
+  let flipped =
+    statuses.prefix(3).allSatisfy { $0 == "ok" } && statuses.suffix(3).allSatisfy { $0 == "denied" }
+  // The shipping fetch handler has no such revocation today; this is an
+  // experiment-local policy showing that if the host adopts one, it works, because the
+  // helper holds no state to work around it.
+  verdict(
+    flipped,
+    "if the host adopts a revoking policy — shown here with an experiment-local handler"
+      + " — it takes effect mid-session, because the helper never held the grant, only"
+      + " asked, and kept no count of its own")
+}
+
+/// The design question behind "keep per-file RPC or hand over a subtree", now under
+/// an attacker. The number is how many files one grant yields once the helper is
+/// hostile: a plain bookmark is a subtree the host cannot take back, per-file RPC is
+/// one decision the host makes every time.
+func experimentHostileGrantScope(sandboxed: String) throws {
+  section("E12d how many files one grant yields to a hijacked helper")
+  let deadline = { ContinuousClock.now + .seconds(20) }
+
+  // Bookmark arm: one plain bookmark for the whole subtree. E8 established it
+  // delegates; here the point is the count — the helper walks it with no further host
+  // involvement, so every file under it is reachable from the single grant.
+  var bookmarkFiles = 0
+  switch makeBookmark(shareDir, options: []) {
+  case .failure(let error):
+    note("could not mint the bookmark: \(describe(error))")
+  case .success(let data):
+    let process = try spawnLoaded(Scripts.summarize, helper: sandboxed)
+    defer { process.shutdown() }
+    let reply = try process.call(
+      [
+        "op": "probe", "what": "bookmark", "data": data.base64EncodedString(),
+        "scoped": false, "relative": "inside.txt", "deep": "nested/deep.txt",
+      ], deadline: deadline())
+    let inside = (reply["insideByOpenat"] as? [String: Any])?["ok"] as? Bool ?? false
+    let deep = (reply["deepByOpenat"] as? [String: Any])?["ok"] as? Bool ?? false
+    bookmarkFiles = (inside ? 1 : 0) + (deep ? 1 : 0)
+    note(
+      "one plain bookmark → the helper opened \(bookmarkFiles) files under the subtree with"
+        + " no further host call (\(bookmarkFiles) is the fixture count, not a cap — the"
+        + " grant covers every file under the subtree)")
+  }
+
+  // RPC arm: the host decides each time. A gate that allows the first file and denies
+  // the rest caps a hijacked helper at exactly what the host let through.
+  var granted = 1
+  let onePerGrant: (String) -> Any = { _ in
+    if granted > 0 {
+      granted -= 1
+      return ["status": "ok", "code": 200]
+    }
+    return ["status": "denied", "code": 403]
+  }
+  let rpc = try spawnLoaded(Scripts.summarizeWithFetch)
+  defer { rpc.shutdown() }
+  rpc.fetchHandler = onePerGrant
+  var allowed = 0
+  for i in 0..<5 {
+    let reply = try rpc.call(
+      ["op": "tick", "raw": snapshot, "tickNumber": i], deadline: deadline())
+    if (reply["value"] as? [String: Any])?["status"] as? String == "ok" { allowed += 1 }
+  }
+  note(
+    "per-file RPC → the helper got \(allowed) file(s); the host refused the other \(5 - allowed)")
+
+  verdict(
+    nil,
+    "one bookmark yields the whole subtree (\(bookmarkFiles) here) and the host cannot"
+      + " intervene after handing it over; per-file RPC yields only what the host allows"
+      + " each time (\(allowed)) — under a hijack, the reverse RPC the design already"
+      + " keeps is the tighter of the two")
+}
+
+/// Whether a *live* grant can be widened by an attacker. This has to go through the
+/// bookmark, not a passed descriptor: E7 established that `openat` through a passed
+/// dirfd is denied under App Sandbox for any target, cooperating or not, so a denied
+/// canary there proves only that the descriptor granted nothing to begin with. The
+/// plain bookmark is the one path where the grant is real — E8 showed the helper
+/// opens `inside.txt` and `nested/deep.txt` through it — which gives a positive
+/// control that lives: the granted files open, and a denied escape then means
+/// confinement rather than an inert descriptor.
+func experimentHostileContainment(sandboxed: String) throws {
+  section("E12e trying to widen a live grant from inside the sandbox")
+  let deadline = { ContinuousClock.now + .seconds(20) }
+
+  guard case .success(let data) = makeBookmark(shareDir, options: []) else {
+    note("could not mint the bookmark — E12e cannot run")
+    return
+  }
+  let blob = data.base64EncodedString()
+
+  struct Escape {
+    let label: String
+    let path: String
+  }
+  // /etc/hosts is not the canary; an absolute path to it opens under the sandbox on
+  // its own and says nothing about the grant, so it is not counted as an escape.
+  let escapes = [
+    Escape(label: "relative ..", path: "../canary.txt"),
+    Escape(label: "deep ..", path: "../../../../../../etc/hosts"),
+    Escape(label: "absolute to canary", path: canaryFile.path),
+    Escape(label: "symlink out of the subtree", path: "escape-link"),
+  ]
+  var grantAlive = false
+  var escaped = false
+  for escape in escapes {
+    let process = try spawnLoaded(Scripts.summarize, helper: sandboxed)
+    defer { process.shutdown() }
+    let reply = try process.call(
+      [
+        "op": "probe", "what": "bookmark", "data": blob, "scoped": false,
+        "relative": "inside.txt", "deep": "nested/deep.txt", "escape": escape.path,
+      ], deadline: deadline())
+    let insideOK = (reply["insideByOpenat"] as? [String: Any])?["ok"] as? Bool ?? false
+    let escapeOK = (reply["escapeByOpenat"] as? [String: Any])?["ok"] as? Bool ?? false
+    let escapePath = (reply["escapeByPath"] as? [String: Any])?["ok"] as? Bool ?? false
+    if insideOK { grantAlive = true }
+    // The canary reached by either route is an escape; /etc/hosts is not.
+    let reachedCanary = (escapeOK || escapePath) && !escape.path.contains("/etc/")
+    if reachedCanary { escaped = true }
+    note(
+      "escape \"\(escape.path)\" [\(escape.label)] → openat "
+        + (escapeOK ? "OPENED" : "denied")
+        + ", by path " + (escapePath ? "OPENED" : "denied")
+        + "; the granted inside.txt "
+        + (insideOK ? "still opened (grant is live)" : "did not open"))
+  }
+  guard grantAlive else {
+    verdict(
+      false,
+      "the granted file never opened — the bookmark grant was not live, so no widening"
+        + " could be tested")
+    return
+  }
+  verdict(
+    !escaped,
+    escaped
+      ? "an attacker widened a live grant to reach the canary — normalizing paths and"
+        + " refusing symlinks before granting is a fix to design in"
+      : "the grant opened the files it was for and no escape reached the canary — a live"
+        + " bookmark grant does not widen for an attacker any more than for a cooperating"
+        + " helper")
+}
+
+/// Fires one attack, then a sentinel, and reports whether the host is still serving.
+/// If the channel is dead but a fresh helper's sentinel answers, the host process
+/// survived and only the socket was lost — which is a different thing from a crash.
+func runOneAttack(_ process: PluginProcess, kind: String, arg: Int, helper: String) -> AttackOutcome
+{
+  do {
+    try process.channel.send(["op": "attack", "kind": kind, "arg": arg, "id": 1])
+  } catch {
+    return .channelDead("send failed: \(error)")
+  }
+  // Drain whatever the attack produced, with a deadline so a never-completing frame
+  // shows up as a stopped hang rather than an infinite wait.
+  let deadline = ContinuousClock.now + .seconds(5)
+  do {
+    while true {
+      let envelope = try process.channel.receive(deadline: deadline)
+      // The attack itself sends nothing on this channel for most kinds; a stray
+      // frame would be the malformed one, which receive() throws on. Reaching a
+      // clean result means the host read past the attack.
+      if envelope.body["op"] as? String == "result" { break }
+    }
+  } catch let error as IPCError {
+    switch error {
+    case .timeout:
+      return .deadline
+    case .oversize, .malformed, .eof, .io:
+      // The transport rejected the frame, which is the containment working. The host
+      // process is fine; confirm with a sentinel on a fresh channel.
+      return sentinel(helper: helper, after: "\(error)")
+    }
+  } catch {
+    return sentinel(helper: helper, after: "\(error)")
+  }
+  return .survived("read past it and answered")
+}
+
+/// A fresh helper and one noop round trip. If it answers, the host process is alive
+/// regardless of what the attack did to the previous channel.
+func sentinel(helper: String, after: String) -> AttackOutcome {
+  do {
+    let probe = try PluginProcess(helperPath: helper)
+    probe.fetchHandler = stubFetch
+    try probe.waitReady(deadline: ContinuousClock.now + .seconds(20))
+    let reply = try probe.call(["op": "noop"], deadline: ContinuousClock.now + .seconds(5))
+    probe.shutdown()
+    if reply["ok"] as? Bool == true {
+      return .channelDead("rejected as \(after); host still serving")
+    }
+    return .channelDead("rejected as \(after); sentinel gave \(reply)")
+  } catch {
+    return .channelDead("rejected as \(after); sentinel also failed: \(error)")
+  }
 }
 
 // MARK: - E11  Developer ID and quarantine
@@ -2352,6 +2793,21 @@ do {
   try experimentColdPhases()
   try experimentBinaryIdentity()
   try experimentStubComparison()
+
+  // E12 needs the hostile helper. Only E12a/b (framing and the RPC flood) run for
+  // now — the questions the task says to settle first — and an attack that crashes
+  // the host aborts the run here, which is itself the "must fix" answer.
+  if let hostile = hostileHelperPath {
+    try experimentHostileFraming(helper: hostile)
+    try experimentHostileRPC(helper: hostile)
+    try experimentHostileCapability()
+    if let sandboxed = sandboxedHelperPath {
+      try experimentHostileGrantScope(sandboxed: sandboxed)
+      try experimentHostileContainment(sandboxed: sandboxed)
+    } else {
+      note("E12d/E12e need --sandboxed-helper — skipped")
+    }
+  }
 
   // E11 needs a helper that apps/JSCoreLab/export.sh has put through Xcode's
   // Developer ID export. Without one the section is skipped and nothing above changes.

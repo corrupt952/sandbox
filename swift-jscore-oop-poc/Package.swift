@@ -45,6 +45,23 @@ let package = Package(
         ])
       ]
     ),
+    // A helper that has been taken over, for E12. It writes raw bytes underneath the
+    // frame protocol, which is the only way to send input a cooperating helper could
+    // not. Its own identifier keeps its App Sandbox container clear of the others'.
+    .executableTarget(
+      name: "HostileHelper",
+      dependencies: ["PluginIPC", "CPluginIPC"],
+      path: "Sources/HostileHelper",
+      exclude: ["Info.plist"],
+      linkerSettings: [
+        .unsafeFlags([
+          "-Xlinker", "-sectcreate",
+          "-Xlinker", "__TEXT",
+          "-Xlinker", "__info_plist",
+          "-Xlinker", "Sources/HostileHelper/Info.plist",
+        ])
+      ]
+    ),
     // The helper minus JavaScriptCore. E10 launches both and compares, which decides
     // whether deferring JSC could buy anything before anyone writes that version.
     .executableTarget(

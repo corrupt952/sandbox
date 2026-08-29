@@ -99,6 +99,7 @@ fi
 status=0
 "${BUILD_DIR}/OOPHost" \
   ${DEVID_ARGS[@]+"${DEVID_ARGS[@]}"} \
+  --hostile-helper "${BUILD_DIR}/HostileHelper" \
   --helper "${BUILD_DIR}/PluginHelper" \
   --sandboxed-helper "${BUILD_DIR}/PluginHelperSandboxed" \
   --bookmark-helper "${BUILD_DIR}/PluginHelperBookmark" \
