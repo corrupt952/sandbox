@@ -64,6 +64,9 @@ let prewarmGaps = (optionValue("--prewarm-gaps") ?? "0,5,10,25,50,100")
 let coldstartRuns = max(2, Int(optionValue("--coldstart-runs") ?? "") ?? 20)
 /// The helper with JavaScriptCore left out, for E10d.
 let stubHelperPath = optionValue("--stub-helper")
+/// The helper as `apps/JSCoreLab/export.sh` leaves it: inside an exported .app,
+/// re-signed by Xcode with Developer ID. E11 only.
+let devIDHelperPath = optionValue("--devid-helper")
 
 let snapshot = Scripts.snapshot(tabs: 50)
 
@@ -470,7 +473,7 @@ func experimentThroughput(
   helper: String,
   label: String,
   environment: [String: String] = [:]
-) throws -> (bridge: Double, loop: Double) {
+) throws -> (bridge: Double, loop: Double, jitBytes: UInt64) {
   func spin(_ script: String, calls: Int) throws -> Double {
     let process = try spawnLoaded(script, helper: helper, environment: environment)
     defer { process.shutdown() }
@@ -509,7 +512,7 @@ func experimentThroughput(
       + ((regions["jitPresent"] as? Bool ?? false) ? "PRESENT" : "ABSENT")
       + (jsHeap == 0 ? " [walk unverified — JS heap also zero]" : ""))
 
-  return (bridge, loop)
+  return (bridge, loop, allocator)
 }
 
 // MARK: - E6  memory attribution
@@ -900,6 +903,302 @@ func experimentStubComparison() throws {
       : "the unvalidated cost differs by \(fmt(coldDelta)) ms, but the stub is also"
         + " the smaller file, and this pair cannot say which of the two did it — a"
         + " stub padded back to the helper's size would separate them, and was not built")
+}
+
+// MARK: - E11  Developer ID and quarantine
+
+/// Runs a shell command and returns its exit status with combined output. Only for
+/// the handful of system tools E11 needs — xattr, spctl — where reimplementing them
+/// would be worse than shelling out.
+func shell(_ args: [String]) -> (status: Int32, output: String) {
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+  process.arguments = args
+  let pipe = Pipe()
+  process.standardOutput = pipe
+  process.standardError = pipe
+  do { try process.run() } catch { return (-1, "\(error)") }
+  let data = pipe.fileHandleForReading.readDataToEndOfFile()
+  process.waitUntilExit()
+  return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+}
+
+func hasQuarantine(_ path: String) -> Bool {
+  shell(["xattr", "-p", "com.apple.quarantine", path]).status == 0
+}
+
+/// Stamps the attribute a browser download would leave. The flag `0083` is what a
+/// Safari download carries; whether a hand-applied attribute is treated the same as
+/// a real one is exactly what E11c has to establish rather than assume.
+func applyQuarantine(_ path: String) {
+  let stamp = String(Int(Date().timeIntervalSince1970), radix: 16)
+  _ = shell([
+    "xattr", "-w", "com.apple.quarantine",
+    "0083;\(stamp);Safari;\(UUID().uuidString)", path,
+  ])
+}
+
+/// What Gatekeeper itself says about the file, independent of what happens when it is
+/// spawned. The two are compared: if they disagree, a hand-applied attribute is not
+/// standing in for a real download and the spawn result cannot be read as Gatekeeper's.
+func assess(_ path: String) -> String {
+  let result = shell(["spctl", "--assess", "--type", "execute", "--verbose", path])
+  return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+    .replacingOccurrences(of: path + ": ", with: "")
+}
+
+/// Whether the helper still gets a JIT once a real certificate is on it. E5 settled
+/// that the JIT hinges on the entitlement; this asks whether the signing identity
+/// changes that, and the ad-hoc variant alongside is what makes the answer readable.
+func experimentDeveloperID(devID: String, adHoc: String?) throws {
+  section("E11a JIT under Developer ID signing — not notarized")
+  // Container resolution first. The helper's own CFBundleIdentifier is embedded in
+  // its signature, so sitting inside another app's bundle should not change which
+  // container it lands in — but "should not" is a prediction, and `home` is the probe.
+  do {
+    let process = try spawnLoaded(Scripts.summarize, helper: devID)
+    defer { process.shutdown() }
+    let home = try process.call(
+      ["op": "probe", "what": "home"], deadline: ContinuousClock.now + .seconds(20))
+    let path = home["home"] as? String ?? "?"
+    note("home: \(path)")
+    verdict(
+      nil,
+      path.contains("dev.zuki.jscore-oop-helper")
+        ? "the helper resolves its own container from inside the .app — the parent"
+          + " bundle's identifier does not take over"
+        : "the helper's container is not its own (\(path)) — bundle placement changed"
+          + " what App Sandbox keyed on")
+  }
+  let devIDResult = try experimentThroughput(helper: devID, label: "Developer ID")
+  verdict(
+    nil,
+    devIDResult.jitBytes > 0
+      ? "the JIT is present under a Developer ID signature — the certificate does not"
+        + " take it away"
+      : "no JIT under a Developer ID signature, with the entitlement still on the binary")
+
+  // Sensitivity control, as E5 does: the same helper with the JIT switched off should
+  // lose its allocator. Only meaningful when there was a JIT to switch off — a helper
+  // that had none is a finding for E11a, not a failed control.
+  if devIDResult.jitBytes > 0 {
+    let off = try experimentThroughput(
+      helper: devID, label: "Developer ID, JSC_useJIT=0", environment: ["JSC_useJIT": "0"])
+    verdict(
+      off.jitBytes == 0,
+      "JSC_useJIT=0 removes the allocator — the JIT reading above is a real one")
+  } else {
+    note("→ no allocator to switch off, so the JSC_useJIT=0 control has nothing to test")
+  }
+
+  guard let adHoc else { return }
+  section("E11b the same helper ad-hoc signed, for contrast")
+  let adHocResult = try experimentThroughput(helper: adHoc, label: "ad-hoc     ")
+  let ratio = devIDResult.loop / adHocResult.loop
+  note("engine work, Developer ID vs ad-hoc: \(fmt(ratio, 2))×")
+  verdict(
+    nil,
+    abs(ratio - 1) < 0.1 && (devIDResult.jitBytes > 0) == (adHocResult.jitBytes > 0)
+      ? "the signing identity makes no difference to the JIT — it is the entitlement,"
+        + " and only the entitlement"
+      : "the two signatures behave differently (\(fmt(ratio, 2))× on engine work) —"
+        + " the identity is doing something the entitlement alone does not")
+}
+
+/// What happens to a helper that arrives the way a download does, before anyone has
+/// notarized it. The expected answer is a refusal, and a refusal is the finding: it is
+/// what makes notarization a requirement rather than a courtesy.
+func experimentQuarantine(devID: String, adHoc: String?) throws {
+  section("E11c launching a quarantined, un-notarized helper")
+  let staging = workDir.appendingPathComponent("quarantine")
+  try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+
+  // Gatekeeper's own verdict on the exported app, before anything is spawned.
+  let appPath = URL(fileURLWithPath: devID).deletingLastPathComponent()
+    .deletingLastPathComponent().deletingLastPathComponent().path
+  note("spctl on the exported .app: \(assess(appPath))")
+  note("spctl on the helper itself: \(assess(devID))")
+
+  /// The shape of a refusal is the evidence. `peer closed the socket` is what the host
+  /// sees whether Gatekeeper killed the helper or App Sandbox failed to build its
+  /// container, so the exit status is read back: SIGKILL is the former's signature,
+  /// SIGTRAP inside libsecinit the latter's.
+  func attempt(_ path: String) -> (ok: Bool, detail: String) {
+    let process: PluginProcess
+    do {
+      process = try PluginProcess(helperPath: path)
+    } catch {
+      return (false, "posix_spawn failed: \(error)")
+    }
+    do {
+      _ = try process.waitReady(deadline: ContinuousClock.now + .seconds(30))
+      let home = try process.call(
+        ["op": "probe", "what": "home"], deadline: ContinuousClock.now + .seconds(20))
+      process.shutdown()
+      return (true, "started, home \(home["home"] as? String ?? "?")")
+    } catch {
+      let status = process.reap()
+      var how = "exited \(status >> 8)"
+      if status & 0x7f != 0 {
+        let signal = status & 0x7f
+        let name = String(cString: strsignal(signal))
+        how = "killed by signal \(signal) (\(name))"
+      }
+      return (false, "\(error) — \(how)")
+    }
+  }
+
+  // The subject: a fresh copy carrying the attribute.
+  let quarantined = staging.appendingPathComponent("PluginHelper-quarantined").path
+  try? FileManager.default.removeItem(atPath: quarantined)
+  try FileManager.default.copyItem(atPath: devID, toPath: quarantined)
+  applyQuarantine(quarantined)
+  guard hasQuarantine(quarantined) else {
+    throw Failure("could not apply the quarantine attribute")
+  }
+  let subject = attempt(quarantined)
+  note("quarantined Developer ID helper → \(subject.detail)")
+
+  // Control 1: same file, attribute removed. If this starts and the subject did not,
+  // the attribute is what refused it. The removal is checked, not assumed — a
+  // control whose attribute silently stayed on would report the wrong branch.
+  _ = shell(["xattr", "-d", "com.apple.quarantine", quarantined])
+  guard !hasQuarantine(quarantined) else {
+    throw Failure("could not remove the quarantine attribute for the control")
+  }
+  let stripped = attempt(quarantined)
+  note("same file, attribute removed → \(stripped.detail)")
+
+  // Control 2: an ad-hoc helper carrying the same attribute. Separates "quarantine
+  // refuses un-notarized code" from "quarantine refuses this signing identity".
+  var adHocQuarantined: (ok: Bool, detail: String)?
+  if let adHoc {
+    let copy = staging.appendingPathComponent("PluginHelperJIT-quarantined").path
+    try? FileManager.default.removeItem(atPath: copy)
+    try FileManager.default.copyItem(atPath: adHoc, toPath: copy)
+    applyQuarantine(copy)
+    guard hasQuarantine(copy) else {
+      throw Failure("could not apply the quarantine attribute to the ad-hoc control")
+    }
+    adHocQuarantined = attempt(copy)
+    note("quarantined ad-hoc helper → \(adHocQuarantined!.detail)")
+  }
+
+  // Control 3: the helper left where it ships, inside the .app, with the whole bundle
+  // quarantined the way a download would be. A bare Mach-O and an executable inside a
+  // bundle may not travel the same Gatekeeper path, and the question this task asks —
+  // whether a child the app posix_spawns is treated like the app — is about the
+  // in-bundle case. Alongside the bare arm, the two can be read against each other.
+  var inBundle: (ok: Bool, detail: String)?
+  do {
+    let bundleCopy = staging.appendingPathComponent("JSCoreLab.app")
+    try? FileManager.default.removeItem(at: bundleCopy)
+    try FileManager.default.copyItem(atPath: appPath, toPath: bundleCopy.path)
+    let helperInBundle = bundleCopy.appendingPathComponent("Contents/MacOS/PluginHelper").path
+    applyQuarantine(bundleCopy.path)
+    applyQuarantine(helperInBundle)
+    guard hasQuarantine(bundleCopy.path), hasQuarantine(helperInBundle) else {
+      throw Failure("could not quarantine the bundle copy")
+    }
+    note("spctl on the quarantined bundle copy: \(assess(bundleCopy.path))")
+    inBundle = attempt(helperInBundle)
+    note("quarantined, still inside its .app → \(inBundle!.detail)")
+  }
+
+  if !subject.ok && stripped.ok {
+    verdict(
+      nil,
+      "the attribute alone is what refuses it — an un-notarized Developer ID helper does"
+        + " not start on the path a download takes, so notarization is a requirement")
+  } else if subject.ok {
+    verdict(
+      nil,
+      "a quarantined, un-notarized helper starts when posix_spawned — consistent with"
+        + " Gatekeeper evaluating launches through LaunchServices and not child processes,"
+        + " which this does not confirm")
+  } else {
+    verdict(
+      nil, "the helper fails with or without the attribute — the refusal is not the quarantine's")
+  }
+  if let adHocQuarantined {
+    verdict(
+      nil,
+      adHocQuarantined.ok == subject.ok
+        ? "ad-hoc and Developer ID are treated alike under quarantine — the identity"
+          + " does not change the outcome"
+        : "ad-hoc (\(adHocQuarantined.ok ? "starts" : "refused")) and Developer ID"
+          + " (\(subject.ok ? "starts" : "refused")) differ under quarantine")
+  }
+  if let inBundle {
+    verdict(
+      nil,
+      inBundle.ok == subject.ok
+        ? "inside the bundle or bare, the outcome is the same — where the helper sits"
+          + " does not change what quarantine does to it"
+        : "inside the bundle (\(inBundle.ok ? "starts" : "refused")) and bare"
+          + " (\(subject.ok ? "starts" : "refused")) differ — bundle placement changes"
+          + " the Gatekeeper path")
+  }
+
+  // E11d only means something if a quarantined helper can start at all.
+  guard subject.ok else {
+    note(
+      "→ E11d (first-launch cost under quarantine) has nothing to measure: the helper does not start"
+    )
+    return
+  }
+  section("E11d first launch under quarantine — what Gatekeeper adds")
+  // Never throws: a refused launch in one arm is a data point for that arm, not a
+  // reason to abandon the other three.
+  func phases(_ path: String) -> Double? {
+    (try? measureColdPhases(helper: path))??.preMain
+  }
+  var plain: [Double] = []
+  var withAttr: [Double] = []
+  var relaunch: [Double] = []
+  var adHocAttr: [Double] = []
+  for index in 0..<max(1, coldstartRuns / 3) {
+    let a = try freshCopy(of: devID, index: 500 + index)
+    if let v = phases(a) { plain.append(v) }
+    try? FileManager.default.removeItem(atPath: a)
+
+    let b = try freshCopy(of: devID, index: 520 + index)
+    applyQuarantine(b)
+    guard hasQuarantine(b) else { throw Failure("quarantine did not apply to a fresh copy") }
+    if let v = phases(b) { withAttr.append(v) }
+    if let v = phases(b) { relaunch.append(v) }
+    try? FileManager.default.removeItem(atPath: b)
+
+    if let adHoc {
+      let c = try freshCopy(of: adHoc, index: 540 + index)
+      applyQuarantine(c)
+      guard hasQuarantine(c) else { throw Failure("quarantine did not apply to the ad-hoc copy") }
+      if let v = phases(c) { adHocAttr.append(v) }
+      try? FileManager.default.removeItem(atPath: c)
+    }
+  }
+  // Percentiles preconditions on a non-empty input, and an arm can come back empty
+  // if every launch in it was refused. Report the emptiness rather than trap on it.
+  func line(_ samples: [Double]) -> String {
+    samples.isEmpty ? "no usable samples" : Percentiles(samples).line
+  }
+  note("before main, fresh copy, no attribute:   \(line(plain))")
+  note("before main, fresh copy, quarantined:    \(line(withAttr))")
+  note("before main, same file relaunched:       \(line(relaunch))")
+  if adHoc != nil {
+    note("before main, ad-hoc, quarantined:        \(line(adHocAttr))")
+  }
+  guard !plain.isEmpty, !withAttr.isEmpty, !relaunch.isEmpty else {
+    note("→ an arm produced no samples, so the attribute's cost cannot be isolated")
+    return
+  }
+  let added = Percentiles(withAttr).p50 - Percentiles(plain).p50
+  note("→ the attribute adds \(fmt(added)) ms to a first launch")
+  verdict(
+    nil,
+    Percentiles(relaunch).p50 < Percentiles(withAttr).p50 / 2
+      ? "and only to the first — relaunching the same quarantined file is cheap again"
+      : "and to every launch — the attribute costs each time, not once")
 }
 
 // MARK: - E9  pre-warming
@@ -2053,6 +2352,13 @@ do {
   try experimentColdPhases()
   try experimentBinaryIdentity()
   try experimentStubComparison()
+
+  // E11 needs a helper that apps/JSCoreLab/export.sh has put through Xcode's
+  // Developer ID export. Without one the section is skipped and nothing above changes.
+  if let devID = devIDHelperPath {
+    try experimentDeveloperID(devID: devID, adHoc: jitHelperPath)
+    try experimentQuarantine(devID: devID, adHoc: jitHelperPath)
+  }
 
   section("summary")
   if failures.isEmpty {

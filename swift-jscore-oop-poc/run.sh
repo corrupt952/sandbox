@@ -78,10 +78,27 @@ codesign -d --entitlements - "${BUILD_DIR}/PluginHelperSandboxed" 2>&1 | sed 's/
 codesign -d -v "${BUILD_DIR}/PluginHelperHardened" 2>&1 | grep -i "flags" | sed 's/^/  /'
 echo
 
+# E11 needs the helper as Xcode's Developer ID export leaves it. That takes a real
+# certificate and Xcode, so it is produced by apps/JSCoreLab/export.sh rather than
+# here, and picked up only if it exists.
+#
+# Expanded as `${DEVID_ARGS[@]+"${DEVID_ARGS[@]}"}` below rather than plainly: this
+# is macOS's bash 3.2, where `set -u` treats an empty array as unbound, and the
+# plain form would end the script before OOPHost ran on any machine without an
+# export — taking E1–E10 down with it.
+DEVID_HELPER=".build/devid/export/JSCoreLab.app/Contents/MacOS/PluginHelper"
+DEVID_ARGS=()
+if [ -x "${DEVID_HELPER}" ]; then
+  DEVID_ARGS=(--devid-helper "${PWD}/${DEVID_HELPER}")
+else
+  echo "(no Developer ID export at ${DEVID_HELPER} — E11 skipped; run apps/JSCoreLab/export.sh to produce one)"
+fi
+
 # `|| status=$?` rather than plain invocation: under `set -e` a failing first pass
 # would end the script before the second one ran, and E8 is worth having either way.
 status=0
 "${BUILD_DIR}/OOPHost" \
+  ${DEVID_ARGS[@]+"${DEVID_ARGS[@]}"} \
   --helper "${BUILD_DIR}/PluginHelper" \
   --sandboxed-helper "${BUILD_DIR}/PluginHelperSandboxed" \
   --bookmark-helper "${BUILD_DIR}/PluginHelperBookmark" \

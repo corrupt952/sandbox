@@ -23,6 +23,28 @@ let package = Package(
         ])
       ]
     ),
+    // The same helper under a different CFBundleIdentifier, for E11. App Sandbox
+    // keys the container to the identifier and then guards it against a binary whose
+    // signing identity differs from the last one that used it — so a Developer ID
+    // build sharing dev.zuki.jscore-oop-helper with the ad-hoc variants trips a
+    // "differs from previously opened versions" dialog on both sides. Its own
+    // identifier gives it its own container and keeps the two from colliding.
+    // Its main.swift is a symlink to PluginHelper's — SwiftPM refuses two targets
+    // over one directory, and a copy would drift.
+    .executableTarget(
+      name: "PluginHelperDevID",
+      dependencies: ["PluginIPC", "CPluginIPC"],
+      path: "Sources/PluginHelperDevID",
+      exclude: ["Info.plist"],
+      linkerSettings: [
+        .unsafeFlags([
+          "-Xlinker", "-sectcreate",
+          "-Xlinker", "__TEXT",
+          "-Xlinker", "__info_plist",
+          "-Xlinker", "Sources/PluginHelperDevID/Info.plist",
+        ])
+      ]
+    ),
     // The helper minus JavaScriptCore. E10 launches both and compares, which decides
     // whether deferring JSC could buy anything before anyone writes that version.
     .executableTarget(
